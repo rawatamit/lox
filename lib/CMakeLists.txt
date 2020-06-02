@@ -7,4 +7,6 @@ add_library(loxlib
             Scanner.cc
             Parser.cc
             ErrorHandler.cc
+            Interpreter.cc
+            Environment.cc
             )

@@ -1,5 +1,6 @@
 #include "Expr.h"
 #include "Token.h"
+#include <any>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -8,25 +9,24 @@
 namespace lox {
     class ASTPrinter : public ExprVisitor {
       public:
-        void print(Expr* expr) {
+        std::any print(Expr* expr) {
             return expr->accept(this);
         }
-        void visitBinaryExpr(BinaryExpr* expr) override {
+        std::any visitBinaryExpr(BinaryExpr* expr) override {
             return parenthesize(expr->Operator.lexeme,
                                 {expr->left, expr->right});
         }
-        void visitGroupingExpr(GroupingExpr* expr) override {
+        std::any visitGroupingExpr(GroupingExpr* expr) override {
             return parenthesize("group", {expr->expression});
         }
-        void visitLiteralExpr(LiteralExpr* expr) override {
-            if (expr->value.empty())
-                std::cout << "nil";
+        std::any visitLiteralExpr(LiteralExpr* expr) override {
             std::cout << " " << expr->value;
+            return nullptr;
         }
-        void visitUnaryExpr(UnaryExpr* expr) override {
+        std::any visitUnaryExpr(UnaryExpr* expr) override {
             return parenthesize(expr->Operator.lexeme, {expr->right});
         }
-        void parenthesize(std::string name, std::vector<Expr*> exprs) {
+        std::any parenthesize(std::string name, std::vector<Expr*> exprs) {
             std::string pp = "(" + name;
             // print
             std::cout << pp;
@@ -34,6 +34,7 @@ namespace lox {
                 expr->accept(this);
             }
             std::cout << ")";
+            return nullptr;
         }
     };
 }

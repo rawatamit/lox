@@ -2,6 +2,7 @@
 #define PARSER_HPP
 
 #include "Expr.h"
+#include "Stmt.h"
 #include "Token.h"
 #include <memory>
 #include <stdexcept>
@@ -21,14 +22,21 @@ namespace lox {
       public:
         Parser(const std::vector<Token>& tokens, ErrorHandler& errorHandler);
         size_t current;
+        Stmt* declaration();
+        Stmt* varDeclaration();
+        Stmt* statement();
+        Stmt* printStatement();
+        Stmt* blockStatement();
+        Stmt* expressionStatement();
         Expr* expression();
+        Expr* assignment();
         Expr* equality();
         Expr* comparison();
         Expr* term();
         Expr* factor();
         Expr* unary();
         Expr* primary();
-        Expr* parse();
+        std::vector<Stmt*> parse();
         ParseError error(Token token, std::string message);
 
       private:

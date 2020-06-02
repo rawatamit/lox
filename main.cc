@@ -7,8 +7,12 @@
 #include "Parser.h"
 #include "Scanner.h"
 #include "ASTPrinter.h"
+#include "Interpreter.h"
 
 namespace lox {
+    static Interpreter* interpreter = new Interpreter();
+    static bool hadRuntimeError = false;
+
     static void run(const std::string& source, ErrorHandler& errorHandler) {
         /// scanner
         Scanner scanner(source, errorHandler);
@@ -20,16 +24,17 @@ namespace lox {
         }
         /// parser
         Parser parser(tokens, errorHandler);
-	auto expr = parser.parse();
+        auto stmts = parser.parse();
 	// if found error during parsing, report
         if (errorHandler.foundError) {
             errorHandler.report();
             return;
         }
 	/// print ast
-	ASTPrinter pp;
-	pp.print(expr);
-	std::cout << std::endl;
+	//ASTPrinter pp;
+	//pp.print(expr);
+	//std::cout << std::endl;
+        interpreter->interpret(stmts);
     }
 
     static void runFile(const std::string& path, ErrorHandler& errorHandler) {
@@ -47,12 +52,17 @@ namespace lox {
             getline(std::cin, line);
             run(line, errorHandler);
             if (errorHandler.foundError) {
-                errorHandler.clear();
+              break;
+            }
+            if (hadRuntimeError)
+            {
+              exit(70);
             }
         }
     }
 }
 
+#if 1
 int main(int argc, char** argv) {
     lox::ErrorHandler errorHandler;
     if (argc > 2) {
@@ -64,3 +74,15 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+#endif
+
+#if 0
+#include <any>
+#include <type_traits>
+
+int main()
+{
+  std::any a = std::make_any<bool>(false);
+  std::cout << typeid(a).name() << '\n';
+}
+#endif

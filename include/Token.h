@@ -6,54 +6,55 @@
 namespace lox {
     enum class TokenType {
         // Single-character tokens.
-        LEFT_PAREN,
+        LEFT_PAREN = 0,
         RIGHT_PAREN,
         LEFT_BRACE,
         RIGHT_BRACE,
         COMMA,
-        DOT,
+        DOT = 5,
         MINUS,
         PLUS,
         SEMICOLON,
         SLASH,
-        STAR,
+        STAR = 10,
 
         // One or two character tokens.
         BANG,
         BANG_EQUAL,
         EQUAL,
         EQUAL_EQUAL,
-        GREATER,
+        GREATER = 15,
         GREATER_EQUAL,
         LESS,
-        LESS_EQUAL,
+        LESS_EQUAL = 18,
 
         // Literals.
         IDENTIFIER, // user-defined (e.g. variable/type name) or
                     // language-defined (reserved keyword)
         STRING,
-        NUMBER,
+        NUMBER = 21,
 
         // Reserved Keywords.
         // Reserved keywords ARE identifiers but have seperate token types
         AND,
         CLASS,
         ELSE,
-        FALSE,
+        FALSE = 25,
         FUN,
         FOR,
         IF,
         NIL,
-        OR,
+        OR = 30,
         PRINT,
         RETURN,
         SUPER,
         THIS,
-        TRUE,
+        TRUE = 35,
         VAR,
         WHILE,
 
-        END_OF_FILE
+        ERROR,
+        END_OF_FILE = 39
     };
 
     class Token {

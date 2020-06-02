@@ -49,7 +49,9 @@ class ASTGenerator {
         file << "#define " + baseName + "_H_" << '\n' << '\n';
 
         // Expr base abstract interface
-        file << "#include \"Token.h\"" << std::endl;
+        file << "#include \"Token.h\"" << '\n';
+        file << "#include <any>" << '\n';
+        file << "#include <vector>" << '\n';
         file << "using namespace lox;" << '\n' << '\n';
 
         // forward declarations
@@ -69,7 +71,7 @@ class ASTGenerator {
         file << "class " << baseName << " {" << std::endl;
         file << "public:" << std::endl;
         file << "  virtual ~" << baseName << "() {}" << std::endl;
-        file << "  virtual void accept(" << baseName + "Visitor* visitor) = 0;"
+        file << "  virtual std::any accept(" << baseName + "Visitor* visitor) = 0;"
              << '\n';
         file << "};" << '\n' << '\n';
 
@@ -99,13 +101,7 @@ class ASTGenerator {
                 file << ", ";
             if (first)
                 first      = false;
-            auto fieldType = lox::split(field, " ")[0];
-            auto fieldName = lox::split(field, " ")[1];
-            if (!fieldType.compare(baseName)) {
-                file << fieldType + "* " + fieldName;
-            } else {
-                file << fieldType + " " + fieldName;
-            }
+            file << "  " << field << '\n';
         }
         file << ")  : ";
         first = true;
@@ -118,19 +114,13 @@ class ASTGenerator {
             file << fieldName + "(" + fieldName + ")";
         }
         file << " {}" << std::endl;
-        file << "  void accept(" << baseName + "Visitor* visitor) override {"
+        file << "  std::any accept(" << baseName + "Visitor* visitor) override {"
              << std::endl;
-        file << "    visitor->visit" << className << "(this);" << std::endl;
+        file << "    return visitor->visit" << className << "(this);" << std::endl;
         file << "  }" << std::endl;
         file << "public: " << std::endl;
         for (auto field : fieldList) {
-            auto fieldType = lox::split(field, " ")[0];
-            auto fieldName = lox::split(field, " ")[1];
-            if (!fieldType.compare(baseName)) {
-                file << "  " << fieldType + "* " + fieldName + ";" << std::endl;
-            } else {
-                file << "  " << fieldType + " " + fieldName + ";" << std::endl;
-            }
+            file << "  " << field << ';' << '\n';
         }
         file << "};" << '\n' << '\n';
     }
@@ -142,7 +132,7 @@ class ASTGenerator {
         file << "  virtual ~" << visitorClassName << "() {}" << std::endl;
         for (auto type : astSpec.second) {
             auto className = type.substr(0, type.find(":"));
-            file << "  virtual void "
+            file << "  virtual std::any "
                  << "    visit" + className << "(" << className << "* " << baseName
                  << ") = 0;" << std::endl;
         }
@@ -159,13 +149,25 @@ int main(int argc, char** argv) {
         std::cout << "Usage: ast_generator <output directory>" << std::endl;
     } else {
         const std::string outDir                     = argv[1];
-        const ASTGenerator::ASTSpecification astSpec = {
+        const ASTGenerator::ASTSpecification exprSpec = {
             "Expr",
-            {"BinaryExpr   :Expr left,Token Operator,Expr right",
-             "GroupingExpr :Expr expression", "LiteralExpr  :std::string value",
-             "UnaryExpr    :Token Operator,Expr right"}};
-        ASTGenerator astGenerator(outDir, astSpec);
-        astGenerator.generate();
+            {"Assign       :Token name, Expr* value",
+             "BinaryExpr   :Expr* left, Token Operator, Expr* right",
+             "GroupingExpr :Expr* expression",
+             "LiteralExpr  :TokenType type, std::string value",
+             "UnaryExpr    :Token Operator, Expr* right",
+             "Variable     :Token name"}};
+        ASTGenerator exprGenerator(outDir, exprSpec);
+        exprGenerator.generate();
+
+        const ASTGenerator::ASTSpecification stmtSpec = {
+            "Stmt",
+            {"Block      : std::vector<Stmt*> stmts",
+             "Expression   :Expr* expr",
+             "Print :Expr* expr",
+             "Var        : Token name, Expr* init"}};
+        ASTGenerator stmtGenerator(outDir, stmtSpec);
+        stmtGenerator.generate();
     }
     return 0;
 }

@@ -13,8 +13,108 @@ Parser::Parser(const std::vector<Token>& tokens, ErrorHandler& errorHandler)
     , tokens_(tokens)
     , errorHandler_(errorHandler) {}
 
+Stmt* Parser::declaration()
+{
+  try
+  {
+    if (match({TokenType::VAR}))
+    {
+        return varDeclaration();
+    }
+    else
+    {
+        return statement();
+    }
+  }
+  catch (const ParseError& e)
+  {
+    advance();
+    return nullptr;
+  }
+}
+
+Stmt* Parser::varDeclaration()
+{
+  Token name =
+    consume(
+      TokenType::IDENTIFIER,
+      "expect variable name.");
+  
+  Expr* init = nullptr;
+  if (match({TokenType::EQUAL}))
+  {
+    init = expression();
+  }
+
+  consume(TokenType::SEMICOLON, "expect ';' in var init.");
+  return new Var(name, init);
+}
+
+Stmt* Parser::statement()
+{
+    if (match({TokenType::PRINT}))
+    {
+        return printStatement();
+    }
+    else if (match({TokenType::LEFT_BRACE}))
+    {
+      return blockStatement();
+    }
+    else
+    {
+        return expressionStatement();
+    }
+}
+
+Stmt* Parser::printStatement()
+{
+    Expr* val = expression();
+    consume(TokenType::SEMICOLON, "expected ';' after print.");
+    return new Print(val);
+}
+
+Stmt* Parser::blockStatement()
+{
+  std::vector<Stmt*> stmts;
+
+  while (! check(TokenType::RIGHT_BRACE) and ! isAtEnd())
+  {
+    stmts.push_back(declaration());
+  }
+
+  consume(TokenType::RIGHT_BRACE, "expected '}' after block");
+  return new Block(stmts);
+}
+
+Stmt* Parser::expressionStatement()
+{
+    Expr* val = expression();
+    consume(TokenType::SEMICOLON, "expected ';' after expression.");
+    return new Expression(val);
+}
+
 Expr* Parser::expression() {
-    return equality();
+    return assignment();
+}
+
+Expr* Parser::assignment() {
+  Expr* e = equality();
+
+  if (match({TokenType::EQUAL}))
+  {
+    Token equals = previous();
+    Expr* value = assignment();
+
+    if (auto evar = dynamic_cast<Variable*>(e))
+    {
+      Token name = evar->name;
+      return new Assign(name, value);
+    }
+
+    error(equals, "invalid assignment target.");
+  }
+
+  return e;
 }
 
 Expr* Parser::equality() {
@@ -69,29 +169,36 @@ Expr* Parser::unary() {
 
 Expr* Parser::primary() {
     if (match({TokenType::FALSE}))
-        return new LiteralExpr("false");
+        return new LiteralExpr(TokenType::FALSE, "false");
     if (match({TokenType::TRUE}))
-        return new LiteralExpr("true");
+        return new LiteralExpr(TokenType::TRUE, "true");
     if (match({TokenType::NIL}))
-        return new LiteralExpr("nil");
+        return new LiteralExpr(TokenType::NIL, "nil");
     if (match({TokenType::NUMBER, TokenType::STRING}))
-        return new LiteralExpr(previous().literal);
+        return new LiteralExpr(previous().type, previous().literal);
     if (match({TokenType::LEFT_PAREN})) {
         Expr* expr = expression();
-        consume(TokenType::RIGHT_PAREN, "Exppect ')' after expression.");
+        consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
         return new GroupingExpr(expr);
+    }
+    if (match({TokenType::IDENTIFIER})) {
+      return new Variable(previous());
     }
     throw error(peek(), "Expect expression.");
     return nullptr;
 }
 
-Expr* Parser::parse() {
-    try {
-        return expression();
-    } catch (ParseError error) {
-        return nullptr;
+std::vector<Stmt*> Parser::parse() {
+    std::vector<Stmt*> stmts;
+
+    while (!isAtEnd())
+    {
+        stmts.push_back(declaration());
     }
+
+    return stmts;
 }
+
 Token Parser::consume(TokenType type, std::string message) {
     if (check(type))
         return advance();
