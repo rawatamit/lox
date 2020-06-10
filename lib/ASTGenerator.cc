@@ -101,9 +101,9 @@ class ASTGenerator {
                 file << ", ";
             if (first)
                 first      = false;
-            file << "  " << field << '\n';
+            file << "  " << field;
         }
-        file << ")  : ";
+        file << ")  :" << '\n' << "    ";
         first = true;
         for (auto field : fieldList) {
             if (!first)
@@ -153,8 +153,10 @@ int main(int argc, char** argv) {
             "Expr",
             {"Assign       :Token name, Expr* value",
              "BinaryExpr   :Expr* left, Token Operator, Expr* right",
+             "Call     : Expr* callee, Token paren, std::vector<Expr*> args",
              "GroupingExpr :Expr* expression",
              "LiteralExpr  :TokenType type, std::string value",
+             "Logical  : Expr* left, Token Operator, Expr* right",
              "UnaryExpr    :Token Operator, Expr* right",
              "Variable     :Token name"}};
         ASTGenerator exprGenerator(outDir, exprSpec);
@@ -163,8 +165,12 @@ int main(int argc, char** argv) {
         const ASTGenerator::ASTSpecification stmtSpec = {
             "Stmt",
             {"Block      : std::vector<Stmt*> stmts",
-             "Expression   :Expr* expr",
-             "Print :Expr* expr",
+             "Expression : Expr* expr",
+             "Function   : Token name, std::vector<Token> params, std::vector<Stmt*> body",
+             "If         : Expr* condition, Stmt* thenBranch, Stmt* elseBranch",
+             "Print      : Expr* expr",
+             "Return     : Token keyword, Expr* value",
+             "While      : Expr* condition, Stmt* body",
              "Var        : Token name, Expr* init"}};
         ASTGenerator stmtGenerator(outDir, stmtSpec);
         stmtGenerator.generate();

@@ -1,17 +1,20 @@
 #include "Parser.h"
 #include "ErrorHandler.h"
 #include <vector>
+#include <algorithm>
 
 using namespace lox;
 
-ParseError::ParseError(std::string msg, Token token)
-    : std::runtime_error(msg)
-    , token_(token) {}
+ParseError::ParseError(std::string msg, Token token) :
+  std::runtime_error(msg),
+  token_(token)
+{}
 
-Parser::Parser(const std::vector<Token>& tokens, ErrorHandler& errorHandler)
-    : current(0)
-    , tokens_(tokens)
-    , errorHandler_(errorHandler) {}
+Parser::Parser(const std::vector<Token>& tokens, ErrorHandler& errorHandler) :
+  current(0),
+  tokens_(tokens),
+  errorHandler_(errorHandler)
+{}
 
 Stmt* Parser::declaration()
 {
@@ -21,6 +24,10 @@ Stmt* Parser::declaration()
     {
         return varDeclaration();
     }
+    else if (match({TokenType::FUN}))
+    {
+      return function("function");
+    }
     else
     {
         return statement();
@@ -28,9 +35,47 @@ Stmt* Parser::declaration()
   }
   catch (const ParseError& e)
   {
-    advance();
+    synchronize();
     return nullptr;
   }
+}
+
+Stmt* Parser::function(const std::string& kind)
+{
+  Token name =
+    consume(
+      TokenType::IDENTIFIER,
+      "expected " + kind + "name.");
+  
+  consume(
+    TokenType::LEFT_PAREN,
+    "expect '(' after " + kind + " name.");
+  
+  std::vector<Token> params;
+  if (! check(TokenType::RIGHT_PAREN))
+  {
+    do {
+      if (params.size() >= 255)
+      {
+        error(peek(), "can't have >= 255 parameters.");
+      }
+      else
+      {
+        params.push_back(
+          consume(
+            TokenType::IDENTIFIER,
+            "Expected parameter name."));
+      }
+    } while (match({TokenType::COMMA}));
+  }
+
+  consume(TokenType::RIGHT_PAREN,
+    "Expected ')' after parameters.");
+  
+  consume(TokenType::LEFT_BRACE,
+    "Expected '{' before function body.");
+  Block* body = static_cast<Block*>(blockStatement());
+  return new Function(name, params, body->stmts);
 }
 
 Stmt* Parser::varDeclaration()
@@ -38,7 +83,7 @@ Stmt* Parser::varDeclaration()
   Token name =
     consume(
       TokenType::IDENTIFIER,
-      "expect variable name.");
+      "Expected variable name.");
   
   Expr* init = nullptr;
   if (match({TokenType::EQUAL}))
@@ -52,18 +97,46 @@ Stmt* Parser::varDeclaration()
 
 Stmt* Parser::statement()
 {
-    if (match({TokenType::PRINT}))
-    {
-        return printStatement();
-    }
-    else if (match({TokenType::LEFT_BRACE}))
-    {
-      return blockStatement();
-    }
-    else
-    {
-        return expressionStatement();
-    }
+  switch (peek().type)
+  {
+  case TokenType::PRINT:
+    match({TokenType::PRINT});
+    return printStatement();
+  case TokenType::WHILE:
+    match({TokenType::WHILE});
+    return whileStatement();
+  case TokenType::FOR:
+    match({TokenType::FOR});
+    return forStatement();
+  case TokenType::LEFT_BRACE:
+    match({TokenType::LEFT_BRACE});
+    return blockStatement();
+  case TokenType::IF:
+    match({TokenType::IF});
+    return ifStatement();
+  case TokenType::RETURN:
+    match({TokenType::RETURN});
+    return returnStatement();
+  default:
+    return expressionStatement();
+  }
+}
+
+Stmt* Parser::ifStatement()
+{
+  consume(TokenType::LEFT_PAREN, "need '(' in condition for if");
+  Expr* condition = expression();
+  consume(TokenType::RIGHT_PAREN, "need ')' in condition for if");
+
+  Stmt* thenBranch = statement();
+  Stmt* elseBranch = nullptr;
+
+  if (match({TokenType::ELSE}))
+  {
+    elseBranch = statement();
+  }
+
+  return new If(condition, thenBranch, elseBranch);
 }
 
 Stmt* Parser::printStatement()
@@ -71,6 +144,69 @@ Stmt* Parser::printStatement()
     Expr* val = expression();
     consume(TokenType::SEMICOLON, "expected ';' after print.");
     return new Print(val);
+}
+
+Stmt* Parser::whileStatement()
+{
+  consume(TokenType::LEFT_PAREN, "need '(' in condition for while");
+  Expr* condition = expression();
+  consume(TokenType::RIGHT_PAREN, "need ')' in condition for while");
+
+  Stmt* body = statement();
+  return new While(condition, body);
+}
+
+Stmt* Parser::forStatement()
+{
+  consume(TokenType::LEFT_PAREN, "expected '(' after for");
+
+  Stmt* init = nullptr;
+  switch (peek().type)
+  {
+  case TokenType::VAR:
+    match({TokenType::VAR});
+    init = varDeclaration();
+    break;
+  case TokenType::SEMICOLON:
+    consume(TokenType::SEMICOLON, "expected ';' in init");
+    break;
+  default:
+    init = expressionStatement();
+    break;
+  }
+
+  Expr* condition = nullptr;
+  if (! check(TokenType::SEMICOLON))
+  {
+    condition = expression();
+  }
+  consume(TokenType::SEMICOLON, "expected ';' after condition");
+
+  Expr* step = nullptr;
+  if (! check(TokenType::RIGHT_PAREN))
+  {
+    step = expression();
+  }
+  consume(TokenType::RIGHT_PAREN, "expected ')' after update");
+
+  Stmt* body = statement();
+
+  // init
+  // while (condition)
+  //   body
+  //   step
+  if (step != nullptr)
+  {
+    body = new Block({body, new Expression(step)});
+  }
+
+  if (condition == nullptr)
+  {
+    condition = new LiteralExpr(TokenType::TRUE, "true");
+  }
+
+  body = new While(condition, body);
+  return (init == nullptr) ? body : new Block({init, body});
 }
 
 Stmt* Parser::blockStatement()
@@ -93,25 +229,63 @@ Stmt* Parser::expressionStatement()
     return new Expression(val);
 }
 
+Stmt* Parser::returnStatement()
+{
+  Token keyword = previous();
+  Expr* expr = nullptr;
+  if (! check(TokenType::SEMICOLON))
+  {
+    expr = expression();
+  }
+  consume(TokenType::SEMICOLON, "expected ';' after return.");
+  return new Return(keyword, expr);
+}
+
 Expr* Parser::expression() {
     return assignment();
 }
 
 Expr* Parser::assignment() {
-  Expr* e = equality();
+  Expr* expr = logic_or();
 
   if (match({TokenType::EQUAL}))
   {
     Token equals = previous();
     Expr* value = assignment();
 
-    if (auto evar = dynamic_cast<Variable*>(e))
+    if (auto var = dynamic_cast<Variable*>(expr))
     {
-      Token name = evar->name;
+      Token name = var->name;
       return new Assign(name, value);
     }
 
-    error(equals, "invalid assignment target.");
+    error(equals, "Invalid assignment target.");
+  }
+
+  return expr;
+}
+
+Expr* Parser::logic_or() {
+  Expr* e = logic_and();
+
+  while (match({TokenType::OR}))
+  {
+    Token op = previous();
+    Expr* r = logic_and();
+    e = new Logical(e, op, r);
+  }
+
+  return e;
+}
+
+Expr* Parser::logic_and() {
+  Expr* e = equality();
+
+  while (match({TokenType::AND}))
+  {
+    Token op = previous();
+    Expr* r = equality();
+    e = new Logical(e, op, r);
   }
 
   return e;
@@ -130,7 +304,9 @@ Expr* Parser::equality() {
 Expr* Parser::comparison() {
     Expr* expr = term();
     while (
-        match({TokenType::GREATER, TokenType::LESS, TokenType::LESS_EQUAL})) {
+        match({TokenType::GREATER, TokenType::LESS,
+              TokenType::LESS_EQUAL, TokenType::GREATER_EQUAL}))
+    {
         Token Operator = previous();
         Expr* right    = term();
         expr           = new BinaryExpr(expr, Operator, right);
@@ -164,7 +340,45 @@ Expr* Parser::unary() {
         Expr* right    = unary();
         return new UnaryExpr(Operator, right);
     }
-    return primary();
+    return call();
+}
+
+Expr* Parser::call() {
+  Expr* e = primary(); 
+
+  while (true)
+  {
+    if (match({TokenType::LEFT_PAREN}))
+    {
+      e = finishCall(e);
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  return e;
+}
+
+Expr* Parser::finishCall(Expr* e) {
+  std::vector<Expr*> args;
+  if (! check(TokenType::RIGHT_PAREN))
+  {
+    do {
+      if (args.size() >= 255)
+      {
+        error(peek(), "cannot have more than 255 arguments");
+      }
+      else
+      {
+        args.push_back(expression());
+      }
+    } while (match({TokenType::COMMA}));
+  }
+
+  Token paren = consume(TokenType::RIGHT_PAREN, "expected ')' in call");
+  return new Call(e, paren, args);
 }
 
 Expr* Parser::primary() {
@@ -184,7 +398,7 @@ Expr* Parser::primary() {
     if (match({TokenType::IDENTIFIER})) {
       return new Variable(previous());
     }
-    throw error(peek(), "Expect expression.");
+    throw error(peek(), "Expected expression.");
     return nullptr;
 }
 
@@ -209,7 +423,7 @@ ParseError Parser::error(Token token, std::string message) {
     if (token.type == TokenType::END_OF_FILE) {
         errorHandler_.add(token.line, " at end", message);
     } else {
-        errorHandler_.add(token.line, "at '" + token.lexeme + "'", message);
+        errorHandler_.add(token.line, " at '" + token.lexeme + "'", message);
     }
     errorHandler_.report();
     return *new ParseError(message, token);
@@ -247,4 +461,31 @@ bool Parser::check(TokenType type) {
     if (isAtEnd())
         return false;
     return peek().type == type;
+}
+
+void Parser::synchronize()
+{
+  advance();
+
+  while (!isAtEnd())
+  {
+    if (previous().type == TokenType::SEMICOLON) return;
+
+    switch (peek().type)
+    {
+    case TokenType::CLASS:
+    case TokenType::FUN:
+    case TokenType::VAR:
+    case TokenType::FOR:
+    case TokenType::IF:
+    case TokenType::WHILE:
+    case TokenType::PRINT:
+    case TokenType::RETURN:
+      return;
+    default:
+      break;
+    }
+
+    advance();
+  }
 }

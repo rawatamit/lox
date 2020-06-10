@@ -9,8 +9,10 @@ using namespace lox;
 class Expr;
 class Assign;
 class BinaryExpr;
+class Call;
 class GroupingExpr;
 class LiteralExpr;
+class Logical;
 class UnaryExpr;
 class Variable;
 
@@ -19,8 +21,10 @@ public:
   virtual ~ExprVisitor() {}
   virtual std::any     visitAssign       (Assign       * Expr) = 0;
   virtual std::any     visitBinaryExpr   (BinaryExpr   * Expr) = 0;
+  virtual std::any     visitCall     (Call     * Expr) = 0;
   virtual std::any     visitGroupingExpr (GroupingExpr * Expr) = 0;
   virtual std::any     visitLiteralExpr  (LiteralExpr  * Expr) = 0;
+  virtual std::any     visitLogical  (Logical  * Expr) = 0;
   virtual std::any     visitUnaryExpr    (UnaryExpr    * Expr) = 0;
   virtual std::any     visitVariable     (Variable     * Expr) = 0;
 };
@@ -33,9 +37,8 @@ public:
 
 class Assign        : public Expr { 
 public: 
-  Assign       (  Token name
-,    Expr* value
-)  : name(name), value(value) {}
+  Assign       (  Token name,    Expr* value)  :
+    name(name), value(value) {}
   std::any accept(ExprVisitor* visitor) override {
     return visitor->visitAssign       (this);
   }
@@ -46,10 +49,8 @@ public:
 
 class BinaryExpr    : public Expr { 
 public: 
-  BinaryExpr   (  Expr* left
-,    Token Operator
-,    Expr* right
-)  : left(left), Operator(Operator), right(right) {}
+  BinaryExpr   (  Expr* left,    Token Operator,    Expr* right)  :
+    left(left), Operator(Operator), right(right) {}
   std::any accept(ExprVisitor* visitor) override {
     return visitor->visitBinaryExpr   (this);
   }
@@ -59,10 +60,23 @@ public:
    Expr* right;
 };
 
+class Call      : public Expr { 
+public: 
+  Call     (   Expr* callee,    Token paren,    std::vector<Expr*> args)  :
+    callee(callee), paren(paren), args(args) {}
+  std::any accept(ExprVisitor* visitor) override {
+    return visitor->visitCall     (this);
+  }
+public: 
+   Expr* callee;
+   Token paren;
+   std::vector<Expr*> args;
+};
+
 class GroupingExpr  : public Expr { 
 public: 
-  GroupingExpr (  Expr* expression
-)  : expression(expression) {}
+  GroupingExpr (  Expr* expression)  :
+    expression(expression) {}
   std::any accept(ExprVisitor* visitor) override {
     return visitor->visitGroupingExpr (this);
   }
@@ -72,9 +86,8 @@ public:
 
 class LiteralExpr   : public Expr { 
 public: 
-  LiteralExpr  (  TokenType type
-,    std::string value
-)  : type(type), value(value) {}
+  LiteralExpr  (  TokenType type,    std::string value)  :
+    type(type), value(value) {}
   std::any accept(ExprVisitor* visitor) override {
     return visitor->visitLiteralExpr  (this);
   }
@@ -83,11 +96,23 @@ public:
    std::string value;
 };
 
+class Logical   : public Expr { 
+public: 
+  Logical  (   Expr* left,    Token Operator,    Expr* right)  :
+    left(left), Operator(Operator), right(right) {}
+  std::any accept(ExprVisitor* visitor) override {
+    return visitor->visitLogical  (this);
+  }
+public: 
+   Expr* left;
+   Token Operator;
+   Expr* right;
+};
+
 class UnaryExpr     : public Expr { 
 public: 
-  UnaryExpr    (  Token Operator
-,    Expr* right
-)  : Operator(Operator), right(right) {}
+  UnaryExpr    (  Token Operator,    Expr* right)  :
+    Operator(Operator), right(right) {}
   std::any accept(ExprVisitor* visitor) override {
     return visitor->visitUnaryExpr    (this);
   }
@@ -98,8 +123,8 @@ public:
 
 class Variable      : public Expr { 
 public: 
-  Variable     (  Token name
-)  : name(name) {}
+  Variable     (  Token name)  :
+    name(name) {}
   std::any accept(ExprVisitor* visitor) override {
     return visitor->visitVariable     (this);
   }

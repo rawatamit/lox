@@ -4,12 +4,12 @@
 using namespace lox;
 
 ErrorHandler::ErrorHandler() :
-    errorList(),
-    foundError(false)
+    foundError(false),
+    errorList()
 {}
 
 void ErrorHandler::report() const {
-    for (const auto error : errorList) {
+    for (const auto& error : errorList) {
         std::cout << "[line " + std::to_string(error.line) + "] Error" +
                          error.where + ": " + error.message
                   << std::endl;

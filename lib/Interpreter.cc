@@ -1,18 +1,59 @@
 #include "Interpreter.h"
+#include "LoxCallable.h"
+#include "LoxFunction.h"
+#include "LoxReturn.h"
+#include "NativeFns.h"
+#include "Utils.h"
+
+#include <memory>
 #include <iostream>
+
+void Interpreter::resolve(Expr* expr, int depth)
+{
+  locals[expr] = depth;
+}
 
 void Interpreter::interpret(std::vector<Stmt*> stmts)
 {
-  try
+  for (Stmt* stmt : stmts)
   {
-    for (Stmt* stmt : stmts)
-    {
-      execute(stmt);
-    }
+    execute(stmt);
   }
-  catch (const RuntimeException& e)
+}
+
+void Interpreter::installNativeFns()
+{
+  globals->define("clock", std::make_any<LoxCallable*>(new ClockFn()));
+}
+
+void Interpreter::checkNumberOperand(Token tok, std::any expr)
+{
+  if (expr.type() != typeid(double))
   {
-    std::cerr << "[line " << e.tok.line << "]: " << e.what() << '\n';
+    throw RuntimeException(tok, "Unary operand must be a number.");
+  }
+}
+
+void Interpreter::checkNumberOperand(Token tok, std::any exp0, std::any exp1)
+{
+  if (exp0.type() != typeid(double) or
+      exp1.type() != typeid(double))
+  {
+    throw RuntimeException(tok, "Binary operands must both be numbers.");
+  }
+}
+
+std::any Interpreter::lookupVariable(const Token& name, Expr* expr)
+{
+  auto it = locals.find(expr);
+
+  if (it != locals.end())
+  {
+    return env->get(it->second, name);
+  }
+  else
+  {
+    return globals->get(name);
   }
 }
 
@@ -21,9 +62,43 @@ std::any Interpreter::execute(Stmt* stmt)
   return stmt->accept(this);
 }
 
+std::any Interpreter::executeBlock(
+  std::vector<Stmt*>& stmts,
+  std::shared_ptr<Environment> newenv)
+{
+  auto oldenv = env;
+  env = newenv;
+
+  try
+  {
+    for (Stmt* st : stmts)
+    {
+      execute(st);
+    }
+  }
+  catch(LoxReturn& e)
+  {
+    // restore the environment
+    // in case we execute a return stmt
+    env = oldenv;
+    throw;
+  }
+  
+  // restore the environment
+  env = oldenv;
+  return nullptr;
+}
+
 std::any Interpreter::evaluate(Expr* expr)
 {
   return expr->accept(this);
+}
+
+std::any Interpreter::visitFunction(Function* stmt)
+{
+  auto fn = std::make_any<LoxCallable*>(new LoxFunction(stmt, env));
+  env->define(stmt->name.lexeme, fn);
+  return nullptr;
 }
 
 std::any Interpreter::visitExpression(Expression* stmt)
@@ -32,11 +107,45 @@ std::any Interpreter::visitExpression(Expression* stmt)
   return nullptr;
 }
 
+std::any Interpreter::visitIf(If* stmt)
+{
+  if (isTruthy(evaluate(stmt->condition)))
+  {
+    execute(stmt->thenBranch);
+  }
+  else if (stmt->elseBranch != nullptr)
+  {
+    execute(stmt->elseBranch);
+  }
+  
+  return nullptr;
+}
+
 std::any Interpreter::visitPrint(Print* stmt)
 {
   auto e = evaluate(stmt->expr);
   std::cout << stringify(e) << '\n';
   return nullptr;
+}
+
+std::any Interpreter::visitWhile(While* stmt)
+{
+  while (isTruthy(evaluate(stmt->condition)))
+  {
+    execute(stmt->body);
+  }
+  return nullptr;
+}
+
+std::any Interpreter::visitReturn(Return* stmt)
+{
+  std::any value = nullptr;
+  if (stmt->value != nullptr)
+  {
+    value = evaluate(stmt->value);
+  }
+
+  throw LoxReturn(value);
 }
 
 std::any Interpreter::visitVar(Var* stmt)
@@ -53,22 +162,38 @@ std::any Interpreter::visitVar(Var* stmt)
 
 std::any Interpreter::visitBlock(Block* stmt)
 {
-  auto cenv = env;
-  env = std::make_shared<Environment>(cenv);
+  return executeBlock(stmt->stmts, std::make_shared<Environment>(env));
+}
 
-  for (Stmt* st : stmt->stmts)
+std::any Interpreter::visitLogical(Logical* expr)
+{
+  std::any l = evaluate(expr->left);
+
+  switch (expr->Operator.type)
   {
-    execute(st);
+  case TokenType::OR:
+    return isTruthy(l) ? l : evaluate(expr->right);
+  case TokenType::AND:
+    return ! isTruthy(l) ? l : evaluate(expr->right);
+  default:
+    throw RuntimeException(expr->Operator, "unknown operator in logical");
   }
-
-  env = cenv;
-  return nullptr;
 }
 
 std::any Interpreter::visitAssign(Assign* expr)
 {
   std::any v = evaluate(expr->value);
-  env->assign(expr->name, v);
+  auto it = locals.find(expr);
+
+  if (it != locals.end())
+  {
+    env->assign(it->second, expr->name, v);
+  }
+  else
+  {
+    globals->assign(expr->name, v);
+  }
+  
   return v;
 }
 
@@ -91,12 +216,10 @@ std::any Interpreter::visitBinaryExpr(BinaryExpr* expr)
   case TokenType::PLUS:
     if (lhs.type() == typeid(double) and rhs.type() == typeid(double))
     {
-      auto l = std::any_cast<double>(lhs);
-      auto r = std::any_cast<double>(rhs);
-
-      return l + r;
+      return std::any_cast<double>(lhs) + std::any_cast<double>(rhs);
     }
-    else if (lhs.type() == typeid(std::string) and rhs.type() == typeid(std::string))
+    else if (lhs.type() == typeid(std::string)
+         and rhs.type() == typeid(std::string))
     {
       auto l = std::any_cast<std::string>(lhs);
       auto r = std::any_cast<std::string>(rhs);
@@ -105,7 +228,9 @@ std::any Interpreter::visitBinaryExpr(BinaryExpr* expr)
       res.append(r);
       return res;
     }
-    throw RuntimeException(expr->Operator, "operands must be number or string");
+
+    throw RuntimeException(expr->Operator,
+      "Binary operands must be two numbers or two strings.");
   case TokenType::GREATER:
     checkNumberOperand(expr->Operator, lhs, rhs);
     return std::any_cast<double>(lhs) > std::any_cast<double>(rhs);
@@ -119,13 +244,40 @@ std::any Interpreter::visitBinaryExpr(BinaryExpr* expr)
     checkNumberOperand(expr->Operator, lhs, rhs);
     return std::any_cast<double>(lhs) <= std::any_cast<double>(rhs);
   case TokenType::BANG_EQUAL:
-    checkNumberOperand(expr->Operator, lhs, rhs);
     return ! isEqual(lhs, rhs);
   case TokenType::EQUAL_EQUAL:
-    checkNumberOperand(expr->Operator, lhs, rhs);
     return isEqual(lhs, rhs);
   default:
     return nullptr;
+  }
+}
+
+std::any Interpreter::visitCall(Call* expr)
+{
+  std::any callee = evaluate(expr->callee);
+  std::vector<std::any> args;
+
+  for (Expr* arg : expr->args)
+  {
+    args.push_back(evaluate(arg));
+  }
+
+  try
+  {
+    LoxCallable* fn = std::any_cast<LoxCallable*>(callee);
+
+    if (args.size() == fn->arity())
+    {
+      return fn->call(this, args);
+    }
+    else
+    {
+      throw RuntimeException(expr->paren, "wrong number of args.");
+    }
+  }
+  catch (const std::bad_cast&)
+  {
+    throw RuntimeException(expr->paren, "Can only call functions and classes.");
   }
 }
 
@@ -173,5 +325,8 @@ std::any Interpreter::visitUnaryExpr(UnaryExpr* expr)
 
 std::any Interpreter::visitVariable(Variable* expr)
 {
-  return env->get(expr->name);
+//std::cout << "lookup: " << expr->name.lexeme << '\n';
+//env->print(std::cout);
+//std::cout << "end lookup\n";
+  return lookupVariable(expr->name, expr);
 }
