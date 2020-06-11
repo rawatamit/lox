@@ -4,35 +4,25 @@
 #include "lox/LoxCallable.h"
 #include "lox/LoxDouble.h"
 #include <ctime>
-#include <string>
 #include <memory>
+#include <string>
 
-namespace lox
-{
+namespace lox {
 
-class ClockFn : public LoxCallable
-{
+class ClockFn : public LoxCallable {
 public:
-    ClockFn() :
-      LoxCallable(LoxObject::BUILTIN)
-    {}
+  ClockFn() : LoxCallable(LoxObject::BUILTIN) {}
 
-    virtual std::shared_ptr<LoxObject> call(Interpreter*, std::vector<std::shared_ptr<LoxObject>>&) override
-    {
-      return std::make_shared<LoxDouble>(clock());
-    }
+  virtual std::shared_ptr<LoxObject>
+  call(Interpreter *, std::vector<std::shared_ptr<LoxObject>> &) override {
+    return std::make_shared<LoxDouble>(clock());
+  }
 
-    virtual unsigned arity() const override
-    {
-      return 0;
-    }
+  virtual unsigned arity() const override { return 0; }
 
-    virtual std::string str() const override
-    {
-      return "<builtin clock>";
-    }
+  virtual std::string str() const override { return "<builtin clock>"; }
 };
 
-}
+} // namespace lox
 
 #endif

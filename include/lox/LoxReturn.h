@@ -4,23 +4,19 @@
 #include <any>
 #include <stdexcept>
 
-namespace lox
-{
+namespace lox {
 
-class LoxReturn : std::runtime_error
-{
+class LoxReturn : std::runtime_error {
 private:
   std::shared_ptr<LoxObject> value;
 
 public:
-  LoxReturn(std::shared_ptr<LoxObject> value) :
-    std::runtime_error("LoxReturn"), value(value)
-  {}
+  LoxReturn(std::shared_ptr<LoxObject> value)
+      : std::runtime_error("LoxReturn"), value(value) {}
 
-  std::shared_ptr<LoxObject> getValue() const
-  { return value; }
+  std::shared_ptr<LoxObject> getValue() const { return value; }
 };
 
-} // namespace
+} // namespace lox
 
 #endif

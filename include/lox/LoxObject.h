@@ -4,14 +4,11 @@
 #include <memory>
 #include <string>
 
-namespace lox
-{
+namespace lox {
 
-class LoxObject
-{
+class LoxObject {
 public:
-  enum ObjT
-  {
+  enum ObjT {
     DOUBLE,
     STRING,
     NIL,
@@ -27,31 +24,17 @@ private:
   ObjT type;
 
 public:
-  LoxObject(ObjT type) :
-    type(type)
-  {}
+  LoxObject(ObjT type) : type(type) {}
 
   virtual ~LoxObject() = default;
-  
-  ObjT getType() const
-  {
-    return type;
-  }
 
-  virtual bool isTruthy() const
-  {
-    return true;
-  }
+  ObjT getType() const { return type; }
 
-  virtual std::string str() const
-  {
-    return "<LoxObject>";
-  }
+  virtual bool isTruthy() const { return true; }
 
-  virtual bool isEqual(std::shared_ptr<LoxObject>) const
-  {
-    return false;
-  }
+  virtual std::string str() const { return "<LoxObject>"; }
+
+  virtual bool isEqual(std::shared_ptr<LoxObject>) const { return false; }
 };
 
 } // namespace lox
