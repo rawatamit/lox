@@ -27,6 +27,7 @@ private:
 
   virtual std::any execute(Stmt* stmt);
   virtual std::any evaluate(Expr* expr);
+  virtual std::any visitClass(Class* klass) override;
   virtual std::any visitFunction(Function* stmt) override;
   virtual std::any visitExpression(Expression* stmt) override;
   virtual std::any visitIf(If* stmt) override;
@@ -39,6 +40,9 @@ private:
   virtual std::any visitAssign(Assign* expr) override;
   virtual std::any visitBinaryExpr(BinaryExpr* expr) override;
   virtual std::any visitCall(Call* expr) override;
+  virtual std::any visitGet(Get* expr) override;
+  virtual std::any visitSet(Set* expr) override;
+  virtual std::any visitThis(This* expr) override;
   virtual std::any visitGroupingExpr(GroupingExpr* expr) override;
   virtual std::any visitLiteralExpr(LiteralExpr* expr) override;
   virtual std::any visitUnaryExpr(UnaryExpr* expr) override;

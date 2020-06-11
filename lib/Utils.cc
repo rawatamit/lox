@@ -1,5 +1,7 @@
 #include "Utils.h"
 #include "LoxCallable.h"
+#include "LoxClass.h"
+#include "LoxInstance.h"
 #include "RuntimeException.h"
 
 bool isTruthy(std::any expr)
@@ -54,6 +56,15 @@ bool isEqual(std::any arg0, std::any arg1)
 
     return e0 == e1;
   }
+  else if (arg0.type() == typeid(LoxCallable*) and
+           arg1.type() == typeid(LoxCallable*))
+  {
+    auto e0 = std::any_cast<LoxCallable*>(arg0);
+    auto e1 = std::any_cast<LoxCallable*>(arg1);
+
+    // TODO: incorrect
+    return e0->str() == e1->str();
+  }
 
   return false;
 }
@@ -90,6 +101,10 @@ std::string stringify(std::any r)
   else if (r.type() == typeid(LoxCallable*))
   {
     return std::any_cast<LoxCallable*>(r)->str();
+  }
+  else if (r.type() == typeid(LoxInstance*))
+  {
+    return std::any_cast<LoxInstance*>(r)->str();
   }
   else
   {

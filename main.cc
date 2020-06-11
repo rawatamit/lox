@@ -21,7 +21,7 @@ namespace lox {
         const auto tokens = scanner.scanAndGetTokens();
         // if found error during scanning, report
         if (errorHandler.foundError) {
-            //errorHandler.report();
+            errorHandler.report();
             return 65;
         }
         /// parser
@@ -29,7 +29,7 @@ namespace lox {
         auto stmts = parser.parse();
 	// if found error during parsing, report
         if (errorHandler.foundError) {
-            //errorHandler.report();
+            errorHandler.report();
             return 65;
         }
 	/// print ast
@@ -59,12 +59,12 @@ namespace lox {
         return 0;
     }
 
-    static void runFile(const std::string& path, ErrorHandler& errorHandler) {
+    static int runFile(const std::string& path, ErrorHandler& errorHandler) {
         std::ifstream file(path);
         std::ostringstream stream;
         stream << file.rdbuf();
         file.close();
-        run(stream.str(), errorHandler);
+        return run(stream.str(), errorHandler);
     }
 
     static void runPrompt(ErrorHandler& errorHandler) {
@@ -72,10 +72,7 @@ namespace lox {
             std::cout << "> ";
             std::string line;
             getline(std::cin, line);
-            int retval = run(line, errorHandler);
-            if (errorHandler.foundError) {
-              exit(retval);
-            }
+            run(line, errorHandler);
             if (hadRuntimeError)
             {
               exit(70);
@@ -90,7 +87,7 @@ int main(int argc, char** argv) {
     if (argc > 2) {
         std::cout << "Usage: lox [filename]" << std::endl;
     } else if (argc == 2) {
-        lox::runFile(argv[1], errorHandler);
+        return lox::runFile(argv[1], errorHandler);
     } else {
         lox::runPrompt(errorHandler);
     }

@@ -19,21 +19,32 @@ class Resolver : public ExprVisitor, public StmtVisitor
 private:
   enum FunctionType
   {
-    NONE,
+    NONEF,
     FUNCTION,
+    METHOD,
+    INITIALZER,
+  };
+
+  enum ClassType
+  {
+    NONEC,
+    CLASS,
   };
 
 private:
   Interpreter* interpreter;
   ErrorHandler& errorHandler;
   FunctionType currentFunction;
+  ClassType currentClass;
   std::vector<std::map<std::string, bool>> scopes;
 
 public:
-  Resolver(Interpreter* interpreter, ErrorHandler& errorHandler) :
+  Resolver(Interpreter* interpreter,
+           ErrorHandler& errorHandler) :
     interpreter(interpreter),
     errorHandler(errorHandler),
-    currentFunction(NONE)
+    currentFunction(NONEF),
+    currentClass(NONEC)
   {}
 
   ~Resolver() = default;
@@ -47,6 +58,7 @@ public:
   void declare(const Token& tok);
   void define(const Token& name);
 
+  virtual std::any visitClass(Class* klass) override;
   virtual std::any visitFunction(Function* stmt) override;
   virtual std::any visitExpression(Expression* stmt) override;
   virtual std::any visitIf(If* stmt) override;
@@ -59,6 +71,9 @@ public:
   virtual std::any visitAssign(Assign* expr) override;
   virtual std::any visitBinaryExpr(BinaryExpr* expr) override;
   virtual std::any visitCall(Call* expr) override;
+  virtual std::any visitGet(Get* expr) override;
+  virtual std::any visitSet(Set* expr) override;
+  virtual std::any visitThis(This* expr) override;
   virtual std::any visitGroupingExpr(GroupingExpr* expr) override;
   virtual std::any visitLiteralExpr(LiteralExpr* expr) override;
   virtual std::any visitUnaryExpr(UnaryExpr* expr) override;

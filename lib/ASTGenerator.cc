@@ -154,9 +154,12 @@ int main(int argc, char** argv) {
             {"Assign       :Token name, Expr* value",
              "BinaryExpr   :Expr* left, Token Operator, Expr* right",
              "Call     : Expr* callee, Token paren, std::vector<Expr*> args",
+             "Get      : Expr* object, Token name",
              "GroupingExpr :Expr* expression",
              "LiteralExpr  :TokenType type, std::string value",
              "Logical  : Expr* left, Token Operator, Expr* right",
+             "Set      : Expr* object, Token name, Expr* value",
+             "This     : Token keyword",
              "UnaryExpr    :Token Operator, Expr* right",
              "Variable     :Token name"}};
         ASTGenerator exprGenerator(outDir, exprSpec);
@@ -165,6 +168,7 @@ int main(int argc, char** argv) {
         const ASTGenerator::ASTSpecification stmtSpec = {
             "Stmt",
             {"Block      : std::vector<Stmt*> stmts",
+             "Class      : Token name, std::vector<Function*> methods",
              "Expression : Expr* expr",
              "Function   : Token name, std::vector<Token> params, std::vector<Stmt*> body",
              "If         : Expr* condition, Stmt* thenBranch, Stmt* elseBranch",

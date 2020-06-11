@@ -23,7 +23,8 @@ namespace lox {
         Parser(const std::vector<Token>& tokens, ErrorHandler& errorHandler);
         size_t current;
         Stmt* declaration();
-        Stmt* function(const std::string& kind);
+        Stmt* classDecl();
+        Function* function(const std::string& kind);
         Stmt* varDeclaration();
         Stmt* statement();
         Stmt* ifStatement();

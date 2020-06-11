@@ -28,6 +28,10 @@ Stmt* Parser::declaration()
     {
       return function("function");
     }
+    else if (match({TokenType::CLASS}))
+    {
+      return classDecl();
+    }
     else
     {
         return statement();
@@ -40,7 +44,25 @@ Stmt* Parser::declaration()
   }
 }
 
-Stmt* Parser::function(const std::string& kind)
+Stmt* Parser::classDecl()
+{
+  Token name =
+    consume(
+      TokenType::IDENTIFIER,
+      "Expect class name.");
+  consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+
+  std::vector<Function*> methods;
+  while (!check(TokenType::RIGHT_BRACE) and !isAtEnd())
+  {
+    methods.push_back(function("method"));
+  }
+
+  consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+  return new Class(name, methods);
+}
+
+Function* Parser::function(const std::string& kind)
 {
   Token name =
     consume(
@@ -258,6 +280,10 @@ Expr* Parser::assignment() {
       Token name = var->name;
       return new Assign(name, value);
     }
+    else if (auto get = dynamic_cast<Get*>(expr))
+    {
+      return new Set(get->object, get->name, value);
+    }
 
     error(equals, "Invalid assignment target.");
   }
@@ -352,6 +378,13 @@ Expr* Parser::call() {
     {
       e = finishCall(e);
     }
+    else if (match({TokenType::DOT}))
+    {
+      Token name =
+        consume(TokenType::IDENTIFIER,
+          "Expect property name after '.'.");
+      e = new Get(e, name);
+    }
     else
     {
       break;
@@ -398,6 +431,10 @@ Expr* Parser::primary() {
     if (match({TokenType::IDENTIFIER})) {
       return new Variable(previous());
     }
+    if (match({TokenType::THIS}))
+    {
+      return new This(previous());
+    }
     throw error(peek(), "Expected expression.");
     return nullptr;
 }
@@ -425,7 +462,6 @@ ParseError Parser::error(Token token, std::string message) {
     } else {
         errorHandler_.add(token.line, " at '" + token.lexeme + "'", message);
     }
-    errorHandler_.report();
     return *new ParseError(message, token);
 }
 

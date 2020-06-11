@@ -78,6 +78,30 @@ void Resolver::define(const Token& name)
   }
 }
 
+std::any Resolver::visitClass(Class* klass)
+{
+  ClassType enclosingClass = currentClass;
+  currentClass = ClassType::CLASS;
+  declare(klass->name);
+  define(klass->name);
+
+  // define this
+  beginScope();
+  scopes.back()["this"] = true;
+
+  for (Function* method : klass->methods)
+  {
+    FunctionType decl =
+      (method->name.lexeme == "this")
+      ? INITIALZER : METHOD;
+    resolveFunction(method, decl);
+  }
+
+  endScope();
+  currentClass = enclosingClass;
+  return nullptr;
+}
+
 std::any Resolver::visitFunction(Function* stmt)
 {
   declare(stmt->name);
@@ -118,7 +142,7 @@ std::any Resolver::visitWhile(While* stmt)
 
 std::any Resolver::visitReturn(Return* stmt)
 {
-  if (currentFunction != FUNCTION)
+  if (currentFunction != FUNCTION && currentFunction != METHOD)
   {
     errorHandler.add(stmt->keyword.line, " at 'return'",
       "Cannot return from top-level code.");
@@ -126,6 +150,11 @@ std::any Resolver::visitReturn(Return* stmt)
 
   if (stmt->value != nullptr)
   {
+    if (currentFunction == INITIALZER)
+    {
+      errorHandler.add(stmt->keyword.line, " at 'return'",
+        "Cannot return a value from an initializer.");
+    }
     resolve(stmt->value);
   }
 
@@ -179,6 +208,33 @@ std::any Resolver::visitCall(Call* expr)
   {
     resolve(arg);
   }
+  return nullptr;
+}
+
+std::any Resolver::visitGet(Get* expr)
+{
+  resolve(expr->object);
+  return nullptr;
+}
+
+std::any Resolver::visitSet(Set* expr)
+{
+  resolve(expr->value);
+  resolve(expr->object);
+  return nullptr;
+}
+
+std::any Resolver::visitThis(This* expr)
+{
+  if (currentClass == NONEC)
+  {
+    errorHandler.add(expr->keyword.line,
+      " at '" + expr->keyword.lexeme + "'",
+      "Cannot use 'this' outside of a class.");
+    return nullptr;
+  }
+
+  resolveLocal(expr, expr->keyword);
   return nullptr;
 }
 

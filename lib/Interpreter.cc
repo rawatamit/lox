@@ -1,5 +1,7 @@
 #include "Interpreter.h"
 #include "LoxCallable.h"
+#include "LoxClass.h"
+#include "LoxInstance.h"
 #include "LoxFunction.h"
 #include "LoxReturn.h"
 #include "NativeFns.h"
@@ -94,9 +96,32 @@ std::any Interpreter::evaluate(Expr* expr)
   return expr->accept(this);
 }
 
+std::any Interpreter::visitClass(Class* klass)
+{
+  env->define(klass->name.lexeme, nullptr);
+
+  std::map<std::string, std::any> methods;
+  for (Function* method : klass->methods)
+  {
+    auto fn =
+      std::make_any<LoxCallable*>(
+        new LoxFunction(method, env,
+          method->name.lexeme == "this"));
+    methods[method->name.lexeme] = fn;
+  }
+
+  auto loxklass =
+    std::make_any<LoxCallable*>(
+      new LoxClass(klass->name.lexeme, methods));
+  env->assign(klass->name, loxklass);
+  return nullptr;
+}
+
 std::any Interpreter::visitFunction(Function* stmt)
 {
-  auto fn = std::make_any<LoxCallable*>(new LoxFunction(stmt, env));
+  auto fn =
+    std::make_any<LoxCallable*>(
+      new LoxFunction(stmt, env, false));
   env->define(stmt->name.lexeme, fn);
   return nullptr;
 }
@@ -272,13 +297,51 @@ std::any Interpreter::visitCall(Call* expr)
     }
     else
     {
-      throw RuntimeException(expr->paren, "wrong number of args.");
+      throw RuntimeException(expr->paren,
+        "Expected " + std::to_string(fn->arity()) +
+        " arguments but got " + std::to_string(args.size())
+        + ".");
     }
   }
   catch (const std::bad_cast&)
   {
     throw RuntimeException(expr->paren, "Can only call functions and classes.");
   }
+}
+
+std::any Interpreter::visitGet(Get* expr)
+{
+  std::any object = evaluate(expr->object);
+std::cout << "get " << object.type().name() << '\n';
+  if (object.type() == typeid(LoxInstance*))
+  {
+    return std::any_cast<LoxInstance*>(object)->
+            get(expr->name);
+  }
+
+  throw RuntimeException(expr->name,
+    "Only instances have properties.");
+}
+
+std::any Interpreter::visitSet(Set* expr)
+{
+  std::any object = evaluate(expr->object);
+
+  if (object.type() == typeid(LoxInstance*))
+  {
+    std::any v = evaluate(expr->value);
+    std::any_cast<LoxInstance*>(object)->
+      set(expr->name, v);
+    return v;
+  }
+
+  throw RuntimeException(expr->name,
+    "Only instances have fields.");
+}
+
+std::any Interpreter::visitThis(This* expr)
+{
+  return lookupVariable(expr->keyword, expr);
 }
 
 std::any Interpreter::visitGroupingExpr(GroupingExpr* expr)
@@ -325,8 +388,5 @@ std::any Interpreter::visitUnaryExpr(UnaryExpr* expr)
 
 std::any Interpreter::visitVariable(Variable* expr)
 {
-//std::cout << "lookup: " << expr->name.lexeme << '\n';
-//env->print(std::cout);
-//std::cout << "end lookup\n";
   return lookupVariable(expr->name, expr);
 }

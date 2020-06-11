@@ -8,6 +8,7 @@ using namespace lox;
 
 class Stmt;
 class Block;
+class Class;
 class Expression;
 class Function;
 class If;
@@ -20,6 +21,7 @@ class StmtVisitor {
 public:
   virtual ~StmtVisitor() {}
   virtual std::any     visitBlock      (Block      * Stmt) = 0;
+  virtual std::any     visitClass      (Class      * Stmt) = 0;
   virtual std::any     visitExpression (Expression * Stmt) = 0;
   virtual std::any     visitFunction   (Function   * Stmt) = 0;
   virtual std::any     visitIf         (If         * Stmt) = 0;
@@ -44,6 +46,18 @@ public:
   }
 public: 
    std::vector<Stmt*> stmts;
+};
+
+class Class       : public Stmt { 
+public: 
+  Class      (   Token name,    std::vector<Function*> methods)  :
+    name(name), methods(methods) {}
+  std::any accept(StmtVisitor* visitor) override {
+    return visitor->visitClass      (this);
+  }
+public: 
+   Token name;
+   std::vector<Function*> methods;
 };
 
 class Expression  : public Stmt { 

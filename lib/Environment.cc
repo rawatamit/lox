@@ -78,7 +78,12 @@ std::any lox::Environment::get(lox::Token name)
 
 std::any lox::Environment::get(int depth, const lox::Token& name)
 {
-  auto it = ancestor(depth)->values.find(name.lexeme);
+  return get(depth, name.lexeme);
+}
+
+std::any lox::Environment::get(int depth, const std::string& name)
+{
+  auto it = ancestor(depth)->values.find(name);
   return it->second;
 }
 

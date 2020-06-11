@@ -10,9 +10,12 @@ class Expr;
 class Assign;
 class BinaryExpr;
 class Call;
+class Get;
 class GroupingExpr;
 class LiteralExpr;
 class Logical;
+class Set;
+class This;
 class UnaryExpr;
 class Variable;
 
@@ -22,9 +25,12 @@ public:
   virtual std::any     visitAssign       (Assign       * Expr) = 0;
   virtual std::any     visitBinaryExpr   (BinaryExpr   * Expr) = 0;
   virtual std::any     visitCall     (Call     * Expr) = 0;
+  virtual std::any     visitGet      (Get      * Expr) = 0;
   virtual std::any     visitGroupingExpr (GroupingExpr * Expr) = 0;
   virtual std::any     visitLiteralExpr  (LiteralExpr  * Expr) = 0;
   virtual std::any     visitLogical  (Logical  * Expr) = 0;
+  virtual std::any     visitSet      (Set      * Expr) = 0;
+  virtual std::any     visitThis     (This     * Expr) = 0;
   virtual std::any     visitUnaryExpr    (UnaryExpr    * Expr) = 0;
   virtual std::any     visitVariable     (Variable     * Expr) = 0;
 };
@@ -73,6 +79,18 @@ public:
    std::vector<Expr*> args;
 };
 
+class Get       : public Expr { 
+public: 
+  Get      (   Expr* object,    Token name)  :
+    object(object), name(name) {}
+  std::any accept(ExprVisitor* visitor) override {
+    return visitor->visitGet      (this);
+  }
+public: 
+   Expr* object;
+   Token name;
+};
+
 class GroupingExpr  : public Expr { 
 public: 
   GroupingExpr (  Expr* expression)  :
@@ -107,6 +125,30 @@ public:
    Expr* left;
    Token Operator;
    Expr* right;
+};
+
+class Set       : public Expr { 
+public: 
+  Set      (   Expr* object,    Token name,    Expr* value)  :
+    object(object), name(name), value(value) {}
+  std::any accept(ExprVisitor* visitor) override {
+    return visitor->visitSet      (this);
+  }
+public: 
+   Expr* object;
+   Token name;
+   Expr* value;
+};
+
+class This      : public Expr { 
+public: 
+  This     (   Token keyword)  :
+    keyword(keyword) {}
+  std::any accept(ExprVisitor* visitor) override {
+    return visitor->visitThis     (this);
+  }
+public: 
+   Token keyword;
 };
 
 class UnaryExpr     : public Expr { 

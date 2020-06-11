@@ -9,15 +9,23 @@
 namespace lox
 {
 
+class LoxInstance;
+
 class LoxFunction : public LoxCallable
 {
 private:
   Function* declaration;
   std::shared_ptr<Environment> closure;
+  bool isInitializer;
 
 public:
-  LoxFunction(Function* declaration, std::shared_ptr<Environment> closure) :
-    declaration(declaration), closure(closure)
+  LoxFunction(
+      Function* declaration,
+      std::shared_ptr<Environment> closure,
+      bool isInitializer) :
+    declaration(declaration),
+    closure(closure),
+    isInitializer(isInitializer)
   {}
 
   virtual std::any call(Interpreter* interpreter, std::vector<std::any>& args) override 
@@ -35,15 +43,33 @@ public:
     }
     catch (const LoxReturn& e)
     {
-      return e.getValue();
+      if (isInitializer)
+      {
+        return closure->get(0, "this");
+      }
+      else
+      {
+        return e.getValue();
+      }
     }
     
+    if (isInitializer)
+    {
+      return closure->get(0, "this");
+    }
     return nullptr;
   }
 
   virtual unsigned arity() const override
   {
     return declaration->params.size();
+  }
+
+  LoxFunction* bind(LoxInstance* instance)
+  {
+    auto env = std::make_shared<Environment>(closure);
+    env->define("this", instance);
+    return new LoxFunction(declaration, env, isInitializer);
   }
 
   virtual std::string str() const override

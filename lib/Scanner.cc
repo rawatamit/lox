@@ -111,8 +111,9 @@ void Scanner::scanAndAddToken()
             } else if (isAlpha(c)) {
                 identifier();
             } else {
-                std::string errorMessage = "Unexpected character: ";
+                std::string errorMessage = "Unexpected character: '";
                 errorMessage += c;
+                errorMessage += "'.";
                 errorHandler.add(line, "", errorMessage);
                 break;
             }

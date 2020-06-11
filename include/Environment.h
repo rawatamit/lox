@@ -32,6 +32,7 @@ public:
   void assign(Token name, std::any v);
   std::any get(Token name);
   std::any get(int depth, const Token& name);
+  std::any get(int depth, const std::string& name);
   void assign(int depth, const lox::Token& name, std::any v);
   void print(std::ostream& out);
 };
