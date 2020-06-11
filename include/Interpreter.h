@@ -5,7 +5,6 @@
 #include "Stmt.h"
 #include "RuntimeException.h"
 #include "Environment.h"
-#include <any>
 #include <memory>
 #include <map>
 #include <vector>
@@ -13,40 +12,42 @@
 namespace lox
 {
 
-class Interpreter: public ExprVisitor, public StmtVisitor
+class Interpreter:
+  public ExprVisitor,
+  public StmtVisitor
 {
 private:
   std::shared_ptr<Environment> globals;
   std::shared_ptr<Environment> env;
-  std::map<Expr*, int> locals;
+  std::map<std::shared_ptr<Expr>, int> locals;
 
   void installNativeFns();
-  void checkNumberOperand(Token tok, std::any expr);
-  void checkNumberOperand(Token tok, std::any exp0, std::any exp1);
-  std::any lookupVariable(const Token& name, Expr* expr);
+  void checkNumberOperand(Token tok, std::shared_ptr<LoxObject> expr);
+  void checkNumberOperand(Token tok, std::shared_ptr<LoxObject> exp0, std::shared_ptr<LoxObject> exp1);
+  std::shared_ptr<LoxObject> lookupVariable(const Token& name, std::shared_ptr<Expr> expr);
 
-  virtual std::any execute(Stmt* stmt);
-  virtual std::any evaluate(Expr* expr);
-  virtual std::any visitClass(Class* klass) override;
-  virtual std::any visitFunction(Function* stmt) override;
-  virtual std::any visitExpression(Expression* stmt) override;
-  virtual std::any visitIf(If* stmt) override;
-  virtual std::any visitPrint(Print* stmt) override;
-  virtual std::any visitWhile(While* stmt) override;
-  virtual std::any visitReturn(Return* stmt) override;
-  virtual std::any visitVar(Var* stmt) override;
-  virtual std::any visitBlock(Block* stmt) override;
-  virtual std::any visitLogical(Logical* expr) override;
-  virtual std::any visitAssign(Assign* expr) override;
-  virtual std::any visitBinaryExpr(BinaryExpr* expr) override;
-  virtual std::any visitCall(Call* expr) override;
-  virtual std::any visitGet(Get* expr) override;
-  virtual std::any visitSet(Set* expr) override;
-  virtual std::any visitThis(This* expr) override;
-  virtual std::any visitGroupingExpr(GroupingExpr* expr) override;
-  virtual std::any visitLiteralExpr(LiteralExpr* expr) override;
-  virtual std::any visitUnaryExpr(UnaryExpr* expr) override;
-  virtual std::any visitVariable(Variable* expr) override;
+  virtual std::shared_ptr<LoxObject> execute(std::shared_ptr<Stmt> stmt);
+  virtual std::shared_ptr<LoxObject> evaluate(std::shared_ptr<Expr> expr);
+  virtual std::shared_ptr<LoxObject> visitClass(std::shared_ptr<Class> klass) override;
+  virtual std::shared_ptr<LoxObject> visitFunction(std::shared_ptr<Function> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitExpression(std::shared_ptr<Expression> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitIf(std::shared_ptr<If> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitPrint(std::shared_ptr<Print> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitWhile(std::shared_ptr<While> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitReturn(std::shared_ptr<Return> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitVar(std::shared_ptr<Var> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitBlock(std::shared_ptr<Block> stmt) override;
+  virtual std::shared_ptr<LoxObject> visitLogical(std::shared_ptr<Logical> expr) override;
+  virtual std::shared_ptr<LoxObject> visitAssign(std::shared_ptr<Assign> expr) override;
+  virtual std::shared_ptr<LoxObject> visitBinaryExpr(std::shared_ptr<BinaryExpr> expr) override;
+  virtual std::shared_ptr<LoxObject> visitCall(std::shared_ptr<Call> expr) override;
+  virtual std::shared_ptr<LoxObject> visitGet(std::shared_ptr<Get> expr) override;
+  virtual std::shared_ptr<LoxObject> visitSet(std::shared_ptr<Set> expr) override;
+  virtual std::shared_ptr<LoxObject> visitThis(std::shared_ptr<This> expr) override;
+  virtual std::shared_ptr<LoxObject> visitGroupingExpr(std::shared_ptr<GroupingExpr> expr) override;
+  virtual std::shared_ptr<LoxObject> visitLiteralExpr(std::shared_ptr<LiteralExpr> expr) override;
+  virtual std::shared_ptr<LoxObject> visitUnaryExpr(std::shared_ptr<UnaryExpr> expr) override;
+  virtual std::shared_ptr<LoxObject> visitVariable(std::shared_ptr<Variable> expr) override;
 
 public:
   Interpreter() :
@@ -56,10 +57,10 @@ public:
     installNativeFns();
   }
 
-  void resolve(Expr* expr, int depth);
-  virtual void interpret(std::vector<Stmt*> stmts);
-  std::any executeBlock(
-    std::vector<Stmt*>& stmt,
+  void resolve(std::shared_ptr<Expr> expr, int depth);
+  virtual void interpret(std::vector<std::shared_ptr<Stmt>> stmts);
+  std::shared_ptr<LoxObject> executeBlock(
+    std::vector<std::shared_ptr<Stmt>>& stmt,
     std::shared_ptr<Environment> nenv);
   std::shared_ptr<Environment> getGlobalEnvironment() const
   { return globals; }

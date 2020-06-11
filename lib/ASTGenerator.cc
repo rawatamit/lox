@@ -50,7 +50,8 @@ class ASTGenerator {
 
         // Expr base abstract interface
         file << "#include \"Token.h\"" << '\n';
-        file << "#include <any>" << '\n';
+        file << "#include \"lox/LoxObject.h\"" << '\n';
+        file << "#include <memory>" << '\n';
         file << "#include <vector>" << '\n';
         file << "using namespace lox;" << '\n' << '\n';
 
@@ -71,7 +72,7 @@ class ASTGenerator {
         file << "class " << baseName << " {" << std::endl;
         file << "public:" << std::endl;
         file << "  virtual ~" << baseName << "() {}" << std::endl;
-        file << "  virtual std::any accept(" << baseName + "Visitor* visitor) = 0;"
+        file << "  virtual std::shared_ptr<LoxObject> accept(" << baseName + "Visitor& visitor) = 0;"
              << '\n';
         file << "};" << '\n' << '\n';
 
@@ -90,10 +91,12 @@ class ASTGenerator {
 
     void defineType(std::ofstream& file, const std::string& baseName,
                     const std::string& className, const std::string fields) {
-        file << "class " + className + " : public " + baseName + " { "
+        file << "class " + className + " : "
+             << "public std::enable_shared_from_this<" << className << ">,"
+             << " public " << baseName << " { "
              << std::endl;
         file << "public: " << '\n';
-        file << "  " << className + "(";
+        file << "  " << className << "(";
         auto fieldList = lox::split(fields, ",");
         bool first     = true;
         for (auto field : fieldList) {
@@ -114,9 +117,10 @@ class ASTGenerator {
             file << fieldName + "(" + fieldName + ")";
         }
         file << " {}" << std::endl;
-        file << "  std::any accept(" << baseName + "Visitor* visitor) override {"
+        file << "  std::shared_ptr<LoxObject> accept(" << baseName + "Visitor& visitor) override {"
              << std::endl;
-        file << "    return visitor->visit" << className << "(this);" << std::endl;
+        file << "    std::shared_ptr<" << className << "> p{shared_from_this()};" << '\n';
+        file << "    return visitor.visit" << className << "(p);" << std::endl;
         file << "  }" << std::endl;
         file << "public: " << std::endl;
         for (auto field : fieldList) {
@@ -132,8 +136,8 @@ class ASTGenerator {
         file << "  virtual ~" << visitorClassName << "() {}" << std::endl;
         for (auto type : astSpec.second) {
             auto className = type.substr(0, type.find(":"));
-            file << "  virtual std::any "
-                 << "    visit" + className << "(" << className << "* " << baseName
+            file << "  virtual std::shared_ptr<LoxObject> "
+                 << "    visit" + className << "(std::shared_ptr<" << className << "> " << baseName
                  << ") = 0;" << std::endl;
         }
         file << "};" << std::endl;
@@ -151,31 +155,31 @@ int main(int argc, char** argv) {
         const std::string outDir                     = argv[1];
         const ASTGenerator::ASTSpecification exprSpec = {
             "Expr",
-            {"Assign       :Token name, Expr* value",
-             "BinaryExpr   :Expr* left, Token Operator, Expr* right",
-             "Call     : Expr* callee, Token paren, std::vector<Expr*> args",
-             "Get      : Expr* object, Token name",
-             "GroupingExpr :Expr* expression",
+            {"Assign       :Token name, std::shared_ptr<Expr> value",
+             "BinaryExpr   :std::shared_ptr<Expr> left, Token Operator, std::shared_ptr<Expr> right",
+             "Call     : std::shared_ptr<Expr> callee, Token paren, std::vector<std::shared_ptr<Expr>> args",
+             "Get      : std::shared_ptr<Expr> object, Token name",
+             "GroupingExpr : std::shared_ptr<Expr> expression",
              "LiteralExpr  :TokenType type, std::string value",
-             "Logical  : Expr* left, Token Operator, Expr* right",
-             "Set      : Expr* object, Token name, Expr* value",
+             "Logical  : std::shared_ptr<Expr> left, Token Operator, std::shared_ptr<Expr> right",
+             "Set      : std::shared_ptr<Expr> object, Token name, std::shared_ptr<Expr> value",
              "This     : Token keyword",
-             "UnaryExpr    :Token Operator, Expr* right",
+             "UnaryExpr    :Token Operator, std::shared_ptr<Expr> right",
              "Variable     :Token name"}};
         ASTGenerator exprGenerator(outDir, exprSpec);
         exprGenerator.generate();
 
         const ASTGenerator::ASTSpecification stmtSpec = {
             "Stmt",
-            {"Block      : std::vector<Stmt*> stmts",
-             "Class      : Token name, std::vector<Function*> methods",
-             "Expression : Expr* expr",
-             "Function   : Token name, std::vector<Token> params, std::vector<Stmt*> body",
-             "If         : Expr* condition, Stmt* thenBranch, Stmt* elseBranch",
-             "Print      : Expr* expr",
-             "Return     : Token keyword, Expr* value",
-             "While      : Expr* condition, Stmt* body",
-             "Var        : Token name, Expr* init"}};
+            {"Block      : std::vector<std::shared_ptr<Stmt>> stmts",
+             "Class      : Token name, std::vector<std::shared_ptr<Function>> methods",
+             "Expression : std::shared_ptr<Expr> expr",
+             "Function   : Token name, std::vector<Token> params, std::vector<std::shared_ptr<Stmt>> body",
+             "If         : std::shared_ptr<Expr> condition, std::shared_ptr<Stmt> thenBranch, std::shared_ptr<Stmt> elseBranch",
+             "Print      : std::shared_ptr<Expr> expr",
+             "Return     : Token keyword, std::shared_ptr<Expr> value",
+             "While      : std::shared_ptr<Expr> condition, std::shared_ptr<Stmt> body",
+             "Var        : Token name, std::shared_ptr<Expr> init"}};
         ASTGenerator stmtGenerator(outDir, stmtSpec);
         stmtGenerator.generate();
     }

@@ -10,6 +10,5 @@ add_library(loxlib
             Environment.cc
             Resolver.cc
             Interpreter.cc
-            Utils.cc
             LoxClass.cc
             )

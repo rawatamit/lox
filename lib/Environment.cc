@@ -1,5 +1,4 @@
 #include "Environment.h"
-#include "Utils.h"
 #include "RuntimeException.h"
 
 lox::Environment* lox::Environment::ancestor(int depth)
@@ -28,12 +27,12 @@ int lox::Environment::depth() const
   return depth;
 }
 
-void lox::Environment::define(std::string k, std::any v)
+void lox::Environment::define(std::string k, std::shared_ptr<LoxObject> v)
 {
   values[k] = v;
 }
 
-void lox::Environment::assign(lox::Token name, std::any v)
+void lox::Environment::assign(lox::Token name, std::shared_ptr<LoxObject> v)
 {
   Environment* current = this;
 
@@ -55,7 +54,7 @@ void lox::Environment::assign(lox::Token name, std::any v)
       "Undefined variable '" + name.lexeme + "'.");
 }
 
-std::any lox::Environment::get(lox::Token name)
+std::shared_ptr<lox::LoxObject> lox::Environment::get(lox::Token name)
 {
   Environment* current = this;
 
@@ -76,18 +75,18 @@ std::any lox::Environment::get(lox::Token name)
       "Undefined variable '" + name.lexeme + "'.");
 }
 
-std::any lox::Environment::get(int depth, const lox::Token& name)
+std::shared_ptr<lox::LoxObject> lox::Environment::get(int depth, const lox::Token& name)
 {
   return get(depth, name.lexeme);
 }
 
-std::any lox::Environment::get(int depth, const std::string& name)
+std::shared_ptr<lox::LoxObject> lox::Environment::get(int depth, const std::string& name)
 {
   auto it = ancestor(depth)->values.find(name);
   return it->second;
 }
 
-void lox::Environment::assign(int depth, const lox::Token& name, std::any v)
+void lox::Environment::assign(int depth, const lox::Token& name, std::shared_ptr<LoxObject> v)
 {
   ancestor(depth)->values[name.lexeme] = v;
 }
@@ -103,7 +102,7 @@ void lox::Environment::print(std::ostream& out)
     {
       out << std::string(2*level, ' ')
           << "level=" << level << ':' << e.first
-          << ':' << stringify(e.second) << '\n';
+          << ':' << e.second->str() << '\n';
     }
 
     ++level;

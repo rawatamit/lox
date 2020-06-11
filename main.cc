@@ -6,13 +6,13 @@
 #include "ErrorHandler.h"
 #include "Parser.h"
 #include "Scanner.h"
-#include "ASTPrinter.h"
+//#include "ASTPrinter.h"
 #include "Resolver.h"
 #include "Interpreter.h"
 #include "RuntimeException.h"
 
 namespace lox {
-    static Interpreter* interpreter = new Interpreter();
+    static std::shared_ptr<Interpreter> interpreter = std::make_shared<Interpreter>();
     static bool hadRuntimeError = false;
 
     static int run(const std::string& source, ErrorHandler& errorHandler) {

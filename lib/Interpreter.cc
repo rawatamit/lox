@@ -1,23 +1,26 @@
 #include "Interpreter.h"
-#include "LoxCallable.h"
-#include "LoxClass.h"
-#include "LoxInstance.h"
-#include "LoxFunction.h"
-#include "LoxReturn.h"
+#include "lox/LoxCallable.h"
+#include "lox/LoxClass.h"
+#include "lox/LoxInstance.h"
+#include "lox/LoxFunction.h"
+#include "lox/LoxReturn.h"
+#include "lox/LoxDouble.h"
+#include "lox/LoxString.h"
+#include "lox/LoxNil.h"
+#include "lox/LoxBool.h"
 #include "NativeFns.h"
-#include "Utils.h"
 
 #include <memory>
 #include <iostream>
 
-void Interpreter::resolve(Expr* expr, int depth)
+void Interpreter::resolve(std::shared_ptr<Expr> expr, int depth)
 {
   locals[expr] = depth;
 }
 
-void Interpreter::interpret(std::vector<Stmt*> stmts)
+void Interpreter::interpret(std::vector<std::shared_ptr<Stmt>> stmts)
 {
-  for (Stmt* stmt : stmts)
+  for (auto stmt : stmts)
   {
     execute(stmt);
   }
@@ -25,27 +28,27 @@ void Interpreter::interpret(std::vector<Stmt*> stmts)
 
 void Interpreter::installNativeFns()
 {
-  globals->define("clock", std::make_any<LoxCallable*>(new ClockFn()));
+  globals->define("clock", std::make_shared<ClockFn>());
 }
 
-void Interpreter::checkNumberOperand(Token tok, std::any expr)
+void Interpreter::checkNumberOperand(Token tok, std::shared_ptr<LoxObject> expr)
 {
-  if (expr.type() != typeid(double))
+  if (expr->getType() != LoxObject::DOUBLE)
   {
     throw RuntimeException(tok, "Unary operand must be a number.");
   }
 }
 
-void Interpreter::checkNumberOperand(Token tok, std::any exp0, std::any exp1)
+void Interpreter::checkNumberOperand(Token tok, std::shared_ptr<LoxObject> exp0, std::shared_ptr<LoxObject> exp1)
 {
-  if (exp0.type() != typeid(double) or
-      exp1.type() != typeid(double))
+  if (exp0->getType() != LoxObject::DOUBLE
+    or exp1->getType() != LoxObject::DOUBLE)
   {
     throw RuntimeException(tok, "Binary operands must both be numbers.");
   }
 }
 
-std::any Interpreter::lookupVariable(const Token& name, Expr* expr)
+std::shared_ptr<LoxObject> Interpreter::lookupVariable(const Token& name, std::shared_ptr<Expr> expr)
 {
   auto it = locals.find(expr);
 
@@ -59,13 +62,13 @@ std::any Interpreter::lookupVariable(const Token& name, Expr* expr)
   }
 }
 
-std::any Interpreter::execute(Stmt* stmt)
+std::shared_ptr<LoxObject> Interpreter::execute(std::shared_ptr<Stmt> stmt)
 {
-  return stmt->accept(this);
+  return stmt->accept(*this);
 }
 
-std::any Interpreter::executeBlock(
-  std::vector<Stmt*>& stmts,
+std::shared_ptr<LoxObject> Interpreter::executeBlock(
+  std::vector<std::shared_ptr<Stmt>>& stmts,
   std::shared_ptr<Environment> newenv)
 {
   auto oldenv = env;
@@ -73,7 +76,7 @@ std::any Interpreter::executeBlock(
 
   try
   {
-    for (Stmt* st : stmts)
+    for (auto st : stmts)
     {
       execute(st);
     }
@@ -91,50 +94,46 @@ std::any Interpreter::executeBlock(
   return nullptr;
 }
 
-std::any Interpreter::evaluate(Expr* expr)
+std::shared_ptr<LoxObject> Interpreter::evaluate(std::shared_ptr<Expr> expr)
 {
-  return expr->accept(this);
+  return expr->accept(*this);
 }
 
-std::any Interpreter::visitClass(Class* klass)
+std::shared_ptr<LoxObject> Interpreter::visitClass(std::shared_ptr<Class> klass)
 {
   env->define(klass->name.lexeme, nullptr);
 
-  std::map<std::string, std::any> methods;
-  for (Function* method : klass->methods)
+  std::map<std::string, std::shared_ptr<LoxObject>> methods;
+  for (std::shared_ptr<Function> method : klass->methods)
   {
     auto fn =
-      std::make_any<LoxCallable*>(
-        new LoxFunction(method, env,
-          method->name.lexeme == "this"));
+      std::make_shared<LoxFunction>(method, env,
+        method->name.lexeme == "init");
     methods[method->name.lexeme] = fn;
   }
 
   auto loxklass =
-    std::make_any<LoxCallable*>(
-      new LoxClass(klass->name.lexeme, methods));
+    std::make_shared<LoxClass>(klass->name.lexeme, methods);
   env->assign(klass->name, loxklass);
   return nullptr;
 }
 
-std::any Interpreter::visitFunction(Function* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitFunction(std::shared_ptr<Function> stmt)
 {
-  auto fn =
-    std::make_any<LoxCallable*>(
-      new LoxFunction(stmt, env, false));
+  auto fn = std::make_shared<LoxFunction>(stmt, env, false);
   env->define(stmt->name.lexeme, fn);
   return nullptr;
 }
 
-std::any Interpreter::visitExpression(Expression* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitExpression(std::shared_ptr<Expression> stmt)
 {
   evaluate(stmt->expr);
   return nullptr;
 }
 
-std::any Interpreter::visitIf(If* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitIf(std::shared_ptr<If> stmt)
 {
-  if (isTruthy(evaluate(stmt->condition)))
+  if (evaluate(stmt->condition)->isTruthy())
   {
     execute(stmt->thenBranch);
   }
@@ -146,25 +145,26 @@ std::any Interpreter::visitIf(If* stmt)
   return nullptr;
 }
 
-std::any Interpreter::visitPrint(Print* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitPrint(std::shared_ptr<Print> stmt)
 {
   auto e = evaluate(stmt->expr);
-  std::cout << stringify(e) << '\n';
+  std::cout << e->str() << '\n';
   return nullptr;
 }
 
-std::any Interpreter::visitWhile(While* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitWhile(std::shared_ptr<While> stmt)
 {
-  while (isTruthy(evaluate(stmt->condition)))
+  while (evaluate(stmt->condition)->isTruthy())
   {
     execute(stmt->body);
   }
   return nullptr;
 }
 
-std::any Interpreter::visitReturn(Return* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitReturn(std::shared_ptr<Return> stmt)
 {
-  std::any value = nullptr;
+  std::shared_ptr<LoxObject> value =
+    std::make_shared<LoxNil>();
   if (stmt->value != nullptr)
   {
     value = evaluate(stmt->value);
@@ -173,9 +173,10 @@ std::any Interpreter::visitReturn(Return* stmt)
   throw LoxReturn(value);
 }
 
-std::any Interpreter::visitVar(Var* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitVar(std::shared_ptr<Var> stmt)
 {
-  std::any value = nullptr;
+  std::shared_ptr<LoxObject> value =
+    std::make_shared<LoxNil>();
   if (stmt->init != nullptr)
   {
     value = evaluate(stmt->init);
@@ -185,30 +186,30 @@ std::any Interpreter::visitVar(Var* stmt)
   return nullptr;
 }
 
-std::any Interpreter::visitBlock(Block* stmt)
+std::shared_ptr<LoxObject> Interpreter::visitBlock(std::shared_ptr<Block> stmt)
 {
   return executeBlock(stmt->stmts, std::make_shared<Environment>(env));
 }
 
-std::any Interpreter::visitLogical(Logical* expr)
+std::shared_ptr<LoxObject> Interpreter::visitLogical(std::shared_ptr<Logical> expr)
 {
-  std::any l = evaluate(expr->left);
+  std::shared_ptr<LoxObject> l = evaluate(expr->left);
 
   switch (expr->Operator.type)
   {
   case TokenType::OR:
-    return isTruthy(l) ? l : evaluate(expr->right);
+    return l->isTruthy() ? l : evaluate(expr->right);
   case TokenType::AND:
-    return ! isTruthy(l) ? l : evaluate(expr->right);
+    return ! l->isTruthy() ? l : evaluate(expr->right);
   default:
     throw RuntimeException(expr->Operator, "unknown operator in logical");
   }
 }
 
-std::any Interpreter::visitAssign(Assign* expr)
+std::shared_ptr<LoxObject> Interpreter::visitAssign(std::shared_ptr<Assign> expr)
 {
-  std::any v = evaluate(expr->value);
-  auto it = locals.find(expr);
+  std::shared_ptr<LoxObject> v = evaluate(expr->value);
+  auto it = locals.find(std::static_pointer_cast<Expr>(expr));
 
   if (it != locals.end())
   {
@@ -222,75 +223,88 @@ std::any Interpreter::visitAssign(Assign* expr)
   return v;
 }
 
-std::any Interpreter::visitBinaryExpr(BinaryExpr* expr)
+std::shared_ptr<LoxObject> Interpreter::visitBinaryExpr(std::shared_ptr<BinaryExpr> expr)
 {
-  std::any lhs = evaluate(expr->left);
-  std::any rhs = evaluate(expr->right);
+  std::shared_ptr<LoxObject> lhs = evaluate(expr->left);
+  std::shared_ptr<LoxObject> rhs = evaluate(expr->right);
 
   switch (expr->Operator.type)
   {
   case TokenType::MINUS:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) - std::any_cast<double>(rhs);
+    return std::make_shared<LoxDouble>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      - std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::STAR:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) * std::any_cast<double>(rhs);
+    return std::make_shared<LoxDouble>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      * std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::SLASH:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) / std::any_cast<double>(rhs);
+    return std::make_shared<LoxDouble>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      / std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::PLUS:
-    if (lhs.type() == typeid(double) and rhs.type() == typeid(double))
+    if (lhs->getType() == LoxObject::DOUBLE
+      and rhs->getType() == LoxObject::DOUBLE)
     {
-      return std::any_cast<double>(lhs) + std::any_cast<double>(rhs);
+      return std::make_shared<LoxDouble>(
+        std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+        + std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
     }
-    else if (lhs.type() == typeid(std::string)
-         and rhs.type() == typeid(std::string))
+    else if (lhs->getType() == LoxObject::STRING
+        and rhs->getType() == LoxObject::STRING)
     {
-      auto l = std::any_cast<std::string>(lhs);
-      auto r = std::any_cast<std::string>(rhs);
-      std::string res;
-      res.append(l);
-      res.append(r);
-      return res;
+      return std::make_shared<LoxString>(
+        std::dynamic_pointer_cast<LoxString>(lhs)->getValue()
+        + std::dynamic_pointer_cast<LoxString>(rhs)->getValue());
     }
 
     throw RuntimeException(expr->Operator,
       "Binary operands must be two numbers or two strings.");
   case TokenType::GREATER:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) > std::any_cast<double>(rhs);
+    return std::make_shared<LoxBool>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      > std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::GREATER_EQUAL:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) >= std::any_cast<double>(rhs);
+    return std::make_shared<LoxBool>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      >= std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::LESS:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) < std::any_cast<double>(rhs);
+    return std::make_shared<LoxBool>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      < std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::LESS_EQUAL:
     checkNumberOperand(expr->Operator, lhs, rhs);
-    return std::any_cast<double>(lhs) <= std::any_cast<double>(rhs);
+    return std::make_shared<LoxBool>(
+      std::dynamic_pointer_cast<LoxDouble>(lhs)->getValue()
+      <= std::dynamic_pointer_cast<LoxDouble>(rhs)->getValue());
   case TokenType::BANG_EQUAL:
-    return ! isEqual(lhs, rhs);
+    return std::make_shared<LoxBool>(! lhs->isEqual(rhs));
   case TokenType::EQUAL_EQUAL:
-    return isEqual(lhs, rhs);
+    return std::make_shared<LoxBool>(lhs->isEqual(rhs));
   default:
     return nullptr;
   }
 }
 
-std::any Interpreter::visitCall(Call* expr)
+std::shared_ptr<LoxObject> Interpreter::visitCall(std::shared_ptr<Call> expr)
 {
-  std::any callee = evaluate(expr->callee);
-  std::vector<std::any> args;
+  std::shared_ptr<LoxObject> callee = evaluate(expr->callee);
+  std::vector<std::shared_ptr<LoxObject>> args;
 
-  for (Expr* arg : expr->args)
+  for (auto arg : expr->args)
   {
     args.push_back(evaluate(arg));
   }
 
-  try
+  if (std::shared_ptr<LoxCallable> fn =
+        std::dynamic_pointer_cast<LoxCallable>(callee))
   {
-    LoxCallable* fn = std::any_cast<LoxCallable*>(callee);
-
     if (args.size() == fn->arity())
     {
       return fn->call(this, args);
@@ -303,19 +317,19 @@ std::any Interpreter::visitCall(Call* expr)
         + ".");
     }
   }
-  catch (const std::bad_cast&)
+  else
   {
     throw RuntimeException(expr->paren, "Can only call functions and classes.");
   }
 }
 
-std::any Interpreter::visitGet(Get* expr)
+std::shared_ptr<LoxObject> Interpreter::visitGet(std::shared_ptr<Get> expr)
 {
-  std::any object = evaluate(expr->object);
-std::cout << "get " << object.type().name() << '\n';
-  if (object.type() == typeid(LoxInstance*))
+  std::shared_ptr<LoxObject> object = evaluate(expr->object);
+//std::cout << "get " << object.type().name() << '\n';
+  if (object->getType() == LoxObject::INSTANCE)
   {
-    return std::any_cast<LoxInstance*>(object)->
+    return std::static_pointer_cast<LoxInstance>(object)->
             get(expr->name);
   }
 
@@ -323,14 +337,14 @@ std::cout << "get " << object.type().name() << '\n';
     "Only instances have properties.");
 }
 
-std::any Interpreter::visitSet(Set* expr)
+std::shared_ptr<LoxObject> Interpreter::visitSet(std::shared_ptr<Set> expr)
 {
-  std::any object = evaluate(expr->object);
+  std::shared_ptr<LoxObject> object = evaluate(expr->object);
 
-  if (object.type() == typeid(LoxInstance*))
+  if (object->getType() == LoxObject::INSTANCE)
   {
-    std::any v = evaluate(expr->value);
-    std::any_cast<LoxInstance*>(object)->
+    std::shared_ptr<LoxObject> v = evaluate(expr->value);
+    std::static_pointer_cast<LoxInstance>(object)->
       set(expr->name, v);
     return v;
   }
@@ -339,54 +353,57 @@ std::any Interpreter::visitSet(Set* expr)
     "Only instances have fields.");
 }
 
-std::any Interpreter::visitThis(This* expr)
+std::shared_ptr<LoxObject> Interpreter::visitThis(std::shared_ptr<This> expr)
 {
-  return lookupVariable(expr->keyword, expr);
+  return lookupVariable(expr->keyword,
+    std::dynamic_pointer_cast<Expr>(expr));
 }
 
-std::any Interpreter::visitGroupingExpr(GroupingExpr* expr)
+std::shared_ptr<LoxObject> Interpreter::visitGroupingExpr(std::shared_ptr<GroupingExpr> expr)
 {
   return evaluate(expr->expression);
 }
 
-std::any Interpreter::visitLiteralExpr(LiteralExpr* expr)
+std::shared_ptr<LoxObject> Interpreter::visitLiteralExpr(std::shared_ptr<LiteralExpr> expr)
 {
   switch (expr->type)
   {
   case TokenType::NUMBER:
-    return strtod(expr->value.c_str(), NULL);
+    return std::make_shared<LoxDouble>(strtod(expr->value.c_str(), NULL));
   case TokenType::NIL:
-    return nullptr;
+    return std::make_shared<LoxNil>();
   case TokenType::STRING:
-    return expr->value;
+    return std::make_shared<LoxString>(expr->value);
   case TokenType::TRUE:
-    return true;
+    return std::make_shared<LoxBool>(true);
   case TokenType::FALSE:
-    return false;
+    return std::make_shared<LoxBool>(false);
   default:
     throw RuntimeException("unknown type visitLiteralExpr()"); 
   }
 }
 
-std::any Interpreter::visitUnaryExpr(UnaryExpr* expr)
+std::shared_ptr<LoxObject> Interpreter::visitUnaryExpr(std::shared_ptr<UnaryExpr> expr)
 {
-  std::any val = evaluate(expr->right);
+  std::shared_ptr<LoxObject> val = evaluate(expr->right);
 
   switch (expr->Operator.type)
   {
   case TokenType::MINUS:
     checkNumberOperand(expr->Operator, val);
-    return - std::any_cast<double>(val);
+    return std::make_shared<LoxDouble>(
+      - std::static_pointer_cast<LoxDouble>(val)->getValue());
   
   case TokenType::BANG:
-    return ! isTruthy(val);
+    return std::make_shared<LoxBool>(!val->isTruthy());
   
   default:
     return nullptr;
   }
 }
 
-std::any Interpreter::visitVariable(Variable* expr)
+std::shared_ptr<LoxObject> Interpreter::visitVariable(std::shared_ptr<Variable> expr)
 {
-  return lookupVariable(expr->name, expr);
+  return lookupVariable(expr->name,
+    std::static_pointer_cast<Expr>(expr));
 }

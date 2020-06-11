@@ -1,26 +1,26 @@
-#include "LoxClass.h"
-#include "LoxFunction.h"
-#include "LoxInstance.h"
+#include "lox/LoxClass.h"
+#include "lox/LoxFunction.h"
+#include "lox/LoxInstance.h"
 
 LoxClass::LoxClass(
   const std::string& name,
-  std::map<std::string, std::any> methods) :
+  std::map<std::string, std::shared_ptr<LoxObject>> methods) :
+    LoxCallable(LoxObject::CLASS),
     name(name),
     methods(methods)
 {}
 
-std::any LoxClass::call(
+std::shared_ptr<LoxObject> LoxClass::call(
   Interpreter* interpreter,
-  std::vector<std::any>& args)
+  std::vector<std::shared_ptr<LoxObject>>& args)
 {
-  LoxInstance* instance = new LoxInstance(this);
-  auto init = findMethod("init");
+  auto instance = std::make_shared<LoxInstance>(this);
 
-  if (init.type() != typeid(std::nullptr_t))
+  if (auto init = findMethod("init"))
   {
-    if (LoxCallable* fn = std::any_cast<LoxCallable*>(init))
+    if (auto fn = std::static_pointer_cast<LoxFunction>(init))
     {
-      static_cast<LoxFunction*>(fn)->bind(instance)->call(interpreter, args);
+      fn->bind(instance)->call(interpreter, args);
     }
   }
 
@@ -29,22 +29,26 @@ std::any LoxClass::call(
 
 unsigned LoxClass::arity() const
 {
-  auto init = findMethod("init");
-  if (init.type() != typeid(std::nullptr_t))
+  if (auto init = findMethod("init"))
   {
-    return std::any_cast<LoxCallable*>(init)->arity();
+    return std::static_pointer_cast<LoxCallable>(init)->arity();
   }
 
   return 0;
 }
 
-std::any LoxClass::findMethod(const std::string& name) const
+std::string LoxClass::getName() const
+{
+  return name;
+}
+
+std::shared_ptr<LoxObject> LoxClass::findMethod(const std::string& name) const
 {
   auto method = methods.find(name);
   return (method == methods.end()) ? nullptr : method->second;
 }
 
-std::any LoxClass::findMethod(const Token& name) const
+std::shared_ptr<LoxObject> LoxClass::findMethod(const Token& name) const
 {
   return findMethod(name.lexeme);
 }
@@ -52,4 +56,16 @@ std::any LoxClass::findMethod(const Token& name) const
 std::string LoxClass::str() const
 {
   return "<class " + name + ">";
+}
+
+bool LoxClass::isEqual(std::shared_ptr<LoxObject> arg0) const
+{
+  if (arg0 == nullptr)
+  {
+    return false;
+  }
+  else
+  {
+    return std::static_pointer_cast<LoxClass>(arg0).get() == this;
+  }
 }

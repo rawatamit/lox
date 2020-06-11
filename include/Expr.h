@@ -2,7 +2,8 @@
 #define Expr_H_
 
 #include "Token.h"
-#include <any>
+#include "lox/LoxObject.h"
+#include <memory>
 #include <vector>
 using namespace lox;
 
@@ -22,153 +23,164 @@ class Variable;
 class ExprVisitor {
 public:
   virtual ~ExprVisitor() {}
-  virtual std::any     visitAssign       (Assign       * Expr) = 0;
-  virtual std::any     visitBinaryExpr   (BinaryExpr   * Expr) = 0;
-  virtual std::any     visitCall     (Call     * Expr) = 0;
-  virtual std::any     visitGet      (Get      * Expr) = 0;
-  virtual std::any     visitGroupingExpr (GroupingExpr * Expr) = 0;
-  virtual std::any     visitLiteralExpr  (LiteralExpr  * Expr) = 0;
-  virtual std::any     visitLogical  (Logical  * Expr) = 0;
-  virtual std::any     visitSet      (Set      * Expr) = 0;
-  virtual std::any     visitThis     (This     * Expr) = 0;
-  virtual std::any     visitUnaryExpr    (UnaryExpr    * Expr) = 0;
-  virtual std::any     visitVariable     (Variable     * Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitAssign       (std::shared_ptr<Assign       > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitBinaryExpr   (std::shared_ptr<BinaryExpr   > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitCall     (std::shared_ptr<Call     > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitGet      (std::shared_ptr<Get      > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitGroupingExpr (std::shared_ptr<GroupingExpr > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitLiteralExpr  (std::shared_ptr<LiteralExpr  > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitLogical  (std::shared_ptr<Logical  > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitSet      (std::shared_ptr<Set      > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitThis     (std::shared_ptr<This     > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitUnaryExpr    (std::shared_ptr<UnaryExpr    > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitVariable     (std::shared_ptr<Variable     > Expr) = 0;
 };
 
 class Expr {
 public:
   virtual ~Expr() {}
-  virtual std::any accept(ExprVisitor* visitor) = 0;
+  virtual std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) = 0;
 };
 
-class Assign        : public Expr { 
+class Assign        : public std::enable_shared_from_this<Assign       >, public Expr { 
 public: 
-  Assign       (  Token name,    Expr* value)  :
+  Assign       (  Token name,    std::shared_ptr<Expr> value)  :
     name(name), value(value) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitAssign       (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Assign       > p{shared_from_this()};
+    return visitor.visitAssign       (p);
   }
 public: 
   Token name;
-   Expr* value;
+   std::shared_ptr<Expr> value;
 };
 
-class BinaryExpr    : public Expr { 
+class BinaryExpr    : public std::enable_shared_from_this<BinaryExpr   >, public Expr { 
 public: 
-  BinaryExpr   (  Expr* left,    Token Operator,    Expr* right)  :
+  BinaryExpr   (  std::shared_ptr<Expr> left,    Token Operator,    std::shared_ptr<Expr> right)  :
     left(left), Operator(Operator), right(right) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitBinaryExpr   (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<BinaryExpr   > p{shared_from_this()};
+    return visitor.visitBinaryExpr   (p);
   }
 public: 
-  Expr* left;
+  std::shared_ptr<Expr> left;
    Token Operator;
-   Expr* right;
+   std::shared_ptr<Expr> right;
 };
 
-class Call      : public Expr { 
+class Call      : public std::enable_shared_from_this<Call     >, public Expr { 
 public: 
-  Call     (   Expr* callee,    Token paren,    std::vector<Expr*> args)  :
+  Call     (   std::shared_ptr<Expr> callee,    Token paren,    std::vector<std::shared_ptr<Expr>> args)  :
     callee(callee), paren(paren), args(args) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitCall     (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Call     > p{shared_from_this()};
+    return visitor.visitCall     (p);
   }
 public: 
-   Expr* callee;
+   std::shared_ptr<Expr> callee;
    Token paren;
-   std::vector<Expr*> args;
+   std::vector<std::shared_ptr<Expr>> args;
 };
 
-class Get       : public Expr { 
+class Get       : public std::enable_shared_from_this<Get      >, public Expr { 
 public: 
-  Get      (   Expr* object,    Token name)  :
+  Get      (   std::shared_ptr<Expr> object,    Token name)  :
     object(object), name(name) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitGet      (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Get      > p{shared_from_this()};
+    return visitor.visitGet      (p);
   }
 public: 
-   Expr* object;
+   std::shared_ptr<Expr> object;
    Token name;
 };
 
-class GroupingExpr  : public Expr { 
+class GroupingExpr  : public std::enable_shared_from_this<GroupingExpr >, public Expr { 
 public: 
-  GroupingExpr (  Expr* expression)  :
+  GroupingExpr (   std::shared_ptr<Expr> expression)  :
     expression(expression) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitGroupingExpr (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<GroupingExpr > p{shared_from_this()};
+    return visitor.visitGroupingExpr (p);
   }
 public: 
-  Expr* expression;
+   std::shared_ptr<Expr> expression;
 };
 
-class LiteralExpr   : public Expr { 
+class LiteralExpr   : public std::enable_shared_from_this<LiteralExpr  >, public Expr { 
 public: 
   LiteralExpr  (  TokenType type,    std::string value)  :
     type(type), value(value) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitLiteralExpr  (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<LiteralExpr  > p{shared_from_this()};
+    return visitor.visitLiteralExpr  (p);
   }
 public: 
   TokenType type;
    std::string value;
 };
 
-class Logical   : public Expr { 
+class Logical   : public std::enable_shared_from_this<Logical  >, public Expr { 
 public: 
-  Logical  (   Expr* left,    Token Operator,    Expr* right)  :
+  Logical  (   std::shared_ptr<Expr> left,    Token Operator,    std::shared_ptr<Expr> right)  :
     left(left), Operator(Operator), right(right) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitLogical  (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Logical  > p{shared_from_this()};
+    return visitor.visitLogical  (p);
   }
 public: 
-   Expr* left;
+   std::shared_ptr<Expr> left;
    Token Operator;
-   Expr* right;
+   std::shared_ptr<Expr> right;
 };
 
-class Set       : public Expr { 
+class Set       : public std::enable_shared_from_this<Set      >, public Expr { 
 public: 
-  Set      (   Expr* object,    Token name,    Expr* value)  :
+  Set      (   std::shared_ptr<Expr> object,    Token name,    std::shared_ptr<Expr> value)  :
     object(object), name(name), value(value) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitSet      (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Set      > p{shared_from_this()};
+    return visitor.visitSet      (p);
   }
 public: 
-   Expr* object;
+   std::shared_ptr<Expr> object;
    Token name;
-   Expr* value;
+   std::shared_ptr<Expr> value;
 };
 
-class This      : public Expr { 
+class This      : public std::enable_shared_from_this<This     >, public Expr { 
 public: 
   This     (   Token keyword)  :
     keyword(keyword) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitThis     (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<This     > p{shared_from_this()};
+    return visitor.visitThis     (p);
   }
 public: 
    Token keyword;
 };
 
-class UnaryExpr     : public Expr { 
+class UnaryExpr     : public std::enable_shared_from_this<UnaryExpr    >, public Expr { 
 public: 
-  UnaryExpr    (  Token Operator,    Expr* right)  :
+  UnaryExpr    (  Token Operator,    std::shared_ptr<Expr> right)  :
     Operator(Operator), right(right) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitUnaryExpr    (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<UnaryExpr    > p{shared_from_this()};
+    return visitor.visitUnaryExpr    (p);
   }
 public: 
   Token Operator;
-   Expr* right;
+   std::shared_ptr<Expr> right;
 };
 
-class Variable      : public Expr { 
+class Variable      : public std::enable_shared_from_this<Variable     >, public Expr { 
 public: 
   Variable     (  Token name)  :
     name(name) {}
-  std::any accept(ExprVisitor* visitor) override {
-    return visitor->visitVariable     (this);
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Variable     > p{shared_from_this()};
+    return visitor.visitVariable     (p);
   }
 public: 
   Token name;

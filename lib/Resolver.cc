@@ -1,24 +1,24 @@
 #include "Resolver.h"
 
-void Resolver::resolve(Stmt* stmt)
+void Resolver::resolve(std::shared_ptr<Stmt> stmt)
 {
-  stmt->accept(this);
+  stmt->accept(*this);
 }
 
-void Resolver::resolve(Expr* expr)
+void Resolver::resolve(std::shared_ptr<Expr> expr)
 {
-  expr->accept(this);
+  expr->accept(*this);
 }
 
-void Resolver::resolve(const std::vector<Stmt*>& stmts)
+void Resolver::resolve(const std::vector<std::shared_ptr<Stmt>>& stmts)
 {
-  for (Stmt* stmt : stmts)
+  for (auto stmt : stmts)
   {
     resolve(stmt);
   }
 }
 
-void Resolver::resolveLocal(Expr* expr, const Token& tok)
+void Resolver::resolveLocal(std::shared_ptr<Expr> expr, const Token& tok)
 {
   for (int i = scopes.size() - 1; i >= 0; --i)
   {
@@ -32,7 +32,7 @@ void Resolver::resolveLocal(Expr* expr, const Token& tok)
   // not found, assume global
 }
 
-void Resolver::resolveFunction(Function* fn, FunctionType type)
+void Resolver::resolveFunction(std::shared_ptr<Function> fn, FunctionType type)
 {
   FunctionType enclosingFn = currentFunction;
   currentFunction = type;
@@ -78,7 +78,7 @@ void Resolver::define(const Token& name)
   }
 }
 
-std::any Resolver::visitClass(Class* klass)
+std::shared_ptr<lox::LoxObject> Resolver::visitClass(std::shared_ptr<Class> klass)
 {
   ClassType enclosingClass = currentClass;
   currentClass = ClassType::CLASS;
@@ -89,11 +89,11 @@ std::any Resolver::visitClass(Class* klass)
   beginScope();
   scopes.back()["this"] = true;
 
-  for (Function* method : klass->methods)
+  for (auto method : klass->methods)
   {
     FunctionType decl =
-      (method->name.lexeme == "this")
-      ? INITIALZER : METHOD;
+      (method->name.lexeme == "init")
+      ? INITIALIZER : METHOD;
     resolveFunction(method, decl);
   }
 
@@ -102,7 +102,7 @@ std::any Resolver::visitClass(Class* klass)
   return nullptr;
 }
 
-std::any Resolver::visitFunction(Function* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitFunction(std::shared_ptr<Function> stmt)
 {
   declare(stmt->name);
   define(stmt->name);
@@ -110,13 +110,13 @@ std::any Resolver::visitFunction(Function* stmt)
   return nullptr;
 }
 
-std::any Resolver::visitExpression(Expression* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitExpression(std::shared_ptr<Expression> stmt)
 {
   resolve(stmt->expr);
   return nullptr;
 }
 
-std::any Resolver::visitIf(If* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitIf(std::shared_ptr<If> stmt)
 {
   resolve(stmt->condition);
   resolve(stmt->thenBranch);
@@ -127,22 +127,22 @@ std::any Resolver::visitIf(If* stmt)
   return nullptr;
 }
 
-std::any Resolver::visitPrint(Print* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitPrint(std::shared_ptr<Print> stmt)
 {
   resolve(stmt->expr);
   return nullptr;
 }
 
-std::any Resolver::visitWhile(While* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitWhile(std::shared_ptr<While> stmt)
 {
   resolve(stmt->condition);
   resolve(stmt->body);
   return nullptr;
 }
 
-std::any Resolver::visitReturn(Return* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitReturn(std::shared_ptr<Return> stmt)
 {
-  if (currentFunction != FUNCTION && currentFunction != METHOD)
+  if (currentFunction == NONEF)
   {
     errorHandler.add(stmt->keyword.line, " at 'return'",
       "Cannot return from top-level code.");
@@ -150,18 +150,21 @@ std::any Resolver::visitReturn(Return* stmt)
 
   if (stmt->value != nullptr)
   {
-    if (currentFunction == INITIALZER)
+    if (currentFunction == INITIALIZER)
     {
       errorHandler.add(stmt->keyword.line, " at 'return'",
-        "Cannot return a value from an initializer.");
+        "Cannot return a value from an initialiser.");
     }
-    resolve(stmt->value);
+    else
+    {
+      resolve(stmt->value);
+    }
   }
 
   return nullptr;
 }
 
-std::any Resolver::visitVar(Var* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitVar(std::shared_ptr<Var> stmt)
 {
   declare(stmt->name);
   if (stmt->init != nullptr)
@@ -172,7 +175,7 @@ std::any Resolver::visitVar(Var* stmt)
   return nullptr;
 }
 
-std::any Resolver::visitBlock(Block* stmt)
+std::shared_ptr<lox::LoxObject> Resolver::visitBlock(std::shared_ptr<Block> stmt)
 {
   beginScope();
   resolve(stmt->stmts);
@@ -180,51 +183,51 @@ std::any Resolver::visitBlock(Block* stmt)
   return nullptr;
 }
 
-std::any Resolver::visitLogical(Logical* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitLogical(std::shared_ptr<Logical> expr)
 {
   resolve(expr->left);
   resolve(expr->right);
   return nullptr;
 }
 
-std::any Resolver::visitAssign(Assign* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitAssign(std::shared_ptr<Assign> expr)
 {
   resolve(expr->value);
   resolveLocal(expr, expr->name);
   return nullptr;
 }
 
-std::any Resolver::visitBinaryExpr(BinaryExpr* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitBinaryExpr(std::shared_ptr<BinaryExpr> expr)
 {
   resolve(expr->left);
   resolve(expr->right);
   return nullptr;
 }
 
-std::any Resolver::visitCall(Call* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitCall(std::shared_ptr<Call> expr)
 {
   resolve(expr->callee);
-  for (Expr* arg : expr->args)
+  for (auto arg : expr->args)
   {
     resolve(arg);
   }
   return nullptr;
 }
 
-std::any Resolver::visitGet(Get* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitGet(std::shared_ptr<Get> expr)
 {
   resolve(expr->object);
   return nullptr;
 }
 
-std::any Resolver::visitSet(Set* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitSet(std::shared_ptr<Set> expr)
 {
   resolve(expr->value);
   resolve(expr->object);
   return nullptr;
 }
 
-std::any Resolver::visitThis(This* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitThis(std::shared_ptr<This> expr)
 {
   if (currentClass == NONEC)
   {
@@ -238,24 +241,24 @@ std::any Resolver::visitThis(This* expr)
   return nullptr;
 }
 
-std::any Resolver::visitGroupingExpr(GroupingExpr* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitGroupingExpr(std::shared_ptr<GroupingExpr> expr)
 {
   resolve(expr->expression);
   return nullptr;
 }
 
-std::any Resolver::visitLiteralExpr(LiteralExpr*)
+std::shared_ptr<lox::LoxObject> Resolver::visitLiteralExpr(std::shared_ptr<LiteralExpr>)
 {
   return nullptr;
 }
 
-std::any Resolver::visitUnaryExpr(UnaryExpr* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitUnaryExpr(std::shared_ptr<UnaryExpr> expr)
 {
   resolve(expr->right);
   return nullptr;
 }
 
-std::any Resolver::visitVariable(Variable* expr)
+std::shared_ptr<lox::LoxObject> Resolver::visitVariable(std::shared_ptr<Variable> expr)
 {
   if (!scopes.empty())
   {

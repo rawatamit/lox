@@ -10,14 +10,14 @@ namespace lox
 class LoxReturn : std::runtime_error
 {
 private:
-  std::any value;
+  std::shared_ptr<LoxObject> value;
 
 public:
-  LoxReturn(std::any value) :
+  LoxReturn(std::shared_ptr<LoxObject> value) :
     std::runtime_error("LoxReturn"), value(value)
   {}
 
-  std::any getValue() const
+  std::shared_ptr<LoxObject> getValue() const
   { return value; }
 };
 

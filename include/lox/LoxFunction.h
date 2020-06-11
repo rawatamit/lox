@@ -3,8 +3,10 @@
 
 #include "Stmt.h"
 #include "LoxCallable.h"
+#include "LoxNil.h"
 #include "LoxReturn.h"
 #include "Environment.h"
+#include <memory>
 
 namespace lox
 {
@@ -14,21 +16,24 @@ class LoxInstance;
 class LoxFunction : public LoxCallable
 {
 private:
-  Function* declaration;
+  std::shared_ptr<Function> declaration;
   std::shared_ptr<Environment> closure;
   bool isInitializer;
 
 public:
   LoxFunction(
-      Function* declaration,
+      std::shared_ptr<Function> declaration,
       std::shared_ptr<Environment> closure,
       bool isInitializer) :
+    LoxCallable(LoxObject::FUNCTION),
     declaration(declaration),
     closure(closure),
     isInitializer(isInitializer)
   {}
 
-  virtual std::any call(Interpreter* interpreter, std::vector<std::any>& args) override 
+  virtual ~LoxFunction() = default;
+
+  virtual std::shared_ptr<LoxObject> call(Interpreter* interpreter, std::vector<std::shared_ptr<LoxObject>>& args) override 
   {
     auto env = std::make_shared<Environment>(closure);
 
@@ -57,7 +62,10 @@ public:
     {
       return closure->get(0, "this");
     }
-    return nullptr;
+    else
+    {
+      return std::make_shared<LoxNil>();
+    }
   }
 
   virtual unsigned arity() const override
@@ -65,15 +73,27 @@ public:
     return declaration->params.size();
   }
 
-  LoxFunction* bind(LoxInstance* instance)
+  std::shared_ptr<LoxFunction> bind(std::shared_ptr<LoxInstance> instance)
   {
     auto env = std::make_shared<Environment>(closure);
-    env->define("this", instance);
-    return new LoxFunction(declaration, env, isInitializer);
+    env->define("this", std::static_pointer_cast<LoxObject>(instance));
+    return std::make_shared<LoxFunction>(declaration, env, isInitializer);
   }
 
   virtual std::string str() const override
   { return "<fn " + declaration->name.lexeme + ">"; }
+
+  virtual bool isEqual(std::shared_ptr<LoxObject> arg0) const override
+  {
+    if (arg0 == nullptr || arg0->getType() != LoxObject::FUNCTION)
+    {
+      return false;
+    }
+    else
+    {
+      return std::static_pointer_cast<LoxFunction>(arg0).get() == this;
+    }
+  }
 };
 
 } // namespace

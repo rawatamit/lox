@@ -1,8 +1,11 @@
 #ifndef _NATIVE_FNS_H_
 #define _NATIVE_FNS_H_
 
-#include "LoxCallable.h"
+#include "lox/LoxCallable.h"
+#include "lox/LoxDouble.h"
 #include <ctime>
+#include <string>
+#include <memory>
 
 namespace lox
 {
@@ -10,14 +13,23 @@ namespace lox
 class ClockFn : public LoxCallable
 {
 public:
-    std::any call(Interpreter*, std::vector<std::any>&)
+    ClockFn() :
+      LoxCallable(LoxObject::BUILTIN)
+    {}
+
+    virtual std::shared_ptr<LoxObject> call(Interpreter*, std::vector<std::shared_ptr<LoxObject>>&) override
     {
-      return static_cast<double>(clock());
+      return std::make_shared<LoxDouble>(clock());
     }
 
-    unsigned arity() const
+    virtual unsigned arity() const override
     {
       return 0;
+    }
+
+    virtual std::string str() const override
+    {
+      return "<builtin clock>";
     }
 };
 
