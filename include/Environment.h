@@ -29,6 +29,7 @@ public:
   ~Environment() = default;
 
   int depth() const;
+  std::shared_ptr<Environment> getEnclosing() const;
   void define(std::string k, std::shared_ptr<LoxObject> v);
   void assign(Token name, std::shared_ptr<LoxObject> v);
   std::shared_ptr<LoxObject> get(Token name);

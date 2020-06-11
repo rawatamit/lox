@@ -17,6 +17,7 @@ class LiteralExpr;
 class Logical;
 class Set;
 class This;
+class Super;
 class UnaryExpr;
 class Variable;
 
@@ -32,6 +33,7 @@ public:
   virtual std::shared_ptr<LoxObject>     visitLogical  (std::shared_ptr<Logical  > Expr) = 0;
   virtual std::shared_ptr<LoxObject>     visitSet      (std::shared_ptr<Set      > Expr) = 0;
   virtual std::shared_ptr<LoxObject>     visitThis     (std::shared_ptr<This     > Expr) = 0;
+  virtual std::shared_ptr<LoxObject>     visitSuper    (std::shared_ptr<Super    > Expr) = 0;
   virtual std::shared_ptr<LoxObject>     visitUnaryExpr    (std::shared_ptr<UnaryExpr    > Expr) = 0;
   virtual std::shared_ptr<LoxObject>     visitVariable     (std::shared_ptr<Variable     > Expr) = 0;
 };
@@ -159,6 +161,19 @@ public:
   }
 public: 
    Token keyword;
+};
+
+class Super     : public std::enable_shared_from_this<Super    >, public Expr { 
+public: 
+  Super    (   Token keyword,    Token method)  :
+    keyword(keyword), method(method) {}
+  std::shared_ptr<LoxObject> accept(ExprVisitor& visitor) override {
+    std::shared_ptr<Super    > p{shared_from_this()};
+    return visitor.visitSuper    (p);
+  }
+public: 
+   Token keyword;
+   Token method;
 };
 
 class UnaryExpr     : public std::enable_shared_from_this<UnaryExpr    >, public Expr { 

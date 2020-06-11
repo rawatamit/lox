@@ -52,14 +52,15 @@ public:
 
 class Class       : public std::enable_shared_from_this<Class      >, public Stmt { 
 public: 
-  Class      (   Token name,    std::vector<std::shared_ptr<Function>> methods)  :
-    name(name), methods(methods) {}
+  Class      (   Token name,    std::shared_ptr<Variable> superclass,    std::vector<std::shared_ptr<Function>> methods)  :
+    name(name), superclass(superclass), methods(methods) {}
   std::shared_ptr<LoxObject> accept(StmtVisitor& visitor) override {
     std::shared_ptr<Class      > p{shared_from_this()};
     return visitor.visitClass      (p);
   }
 public: 
    Token name;
+   std::shared_ptr<Variable> superclass;
    std::vector<std::shared_ptr<Function>> methods;
 };
 

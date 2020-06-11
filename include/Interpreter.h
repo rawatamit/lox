@@ -44,6 +44,7 @@ private:
   virtual std::shared_ptr<LoxObject> visitGet(std::shared_ptr<Get> expr) override;
   virtual std::shared_ptr<LoxObject> visitSet(std::shared_ptr<Set> expr) override;
   virtual std::shared_ptr<LoxObject> visitThis(std::shared_ptr<This> expr) override;
+  virtual std::shared_ptr<LoxObject> visitSuper(std::shared_ptr<Super> expr) override;
   virtual std::shared_ptr<LoxObject> visitGroupingExpr(std::shared_ptr<GroupingExpr> expr) override;
   virtual std::shared_ptr<LoxObject> visitLiteralExpr(std::shared_ptr<LiteralExpr> expr) override;
   virtual std::shared_ptr<LoxObject> visitUnaryExpr(std::shared_ptr<UnaryExpr> expr) override;

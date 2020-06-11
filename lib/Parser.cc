@@ -50,6 +50,14 @@ std::shared_ptr<Stmt> Parser::classDecl()
     consume(
       TokenType::IDENTIFIER,
       "Expected class name.");
+  
+  std::shared_ptr<Variable> superclass = nullptr;
+  if (match({TokenType::LESS}))
+  {
+    consume(TokenType::IDENTIFIER, "Expected superclass name.");
+    superclass = std::make_shared<Variable>(previous());
+  }
+
   consume(TokenType::LEFT_BRACE, "Expected '{' before class body.");
 
   std::vector<std::shared_ptr<Function>> methods;
@@ -59,7 +67,8 @@ std::shared_ptr<Stmt> Parser::classDecl()
   }
 
   consume(TokenType::RIGHT_BRACE, "Expected '}' after class body.");
-  return std::static_pointer_cast<Stmt>(std::make_shared<Class>(name, methods));
+  return std::static_pointer_cast<Stmt>(
+    std::make_shared<Class>(name, superclass, methods));
 }
 
 std::shared_ptr<Function> Parser::function(const std::string& kind)
@@ -484,6 +493,16 @@ std::shared_ptr<Expr> Parser::primary() {
     {
       return std::static_pointer_cast<Expr>(
         std::make_shared<This>(previous()));
+    }
+    if (match({TokenType::SUPER}))
+    {
+      Token keyword = previous();
+      consume(TokenType::DOT, "Expected '.' after 'super'.");
+      Token method =
+        consume(TokenType::IDENTIFIER,
+          "Expected superclass method name.");
+      return std::static_pointer_cast<Expr>(
+        std::make_shared<Super>(keyword, method));
     }
     throw error(peek(), "Expected expression.");
     return nullptr;

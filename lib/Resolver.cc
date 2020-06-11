@@ -85,6 +85,22 @@ std::shared_ptr<lox::LoxObject> Resolver::visitClass(std::shared_ptr<Class> klas
   declare(klass->name);
   define(klass->name);
 
+  if (klass->superclass != nullptr)
+  {
+    if (klass->superclass->name.lexeme == klass->name.lexeme)
+    {
+      errorHandler.add(klass->name.line, " at 'return'",
+        "A class cannot inherit from itself.");
+    }
+    else
+    {
+      currentClass = SUBCLASS;
+      resolve(klass->superclass);
+      beginScope();
+      scopes.back()["super"] = true;
+    }
+  }
+
   // define this
   beginScope();
   scopes.back()["this"] = true;
@@ -98,6 +114,11 @@ std::shared_ptr<lox::LoxObject> Resolver::visitClass(std::shared_ptr<Class> klas
   }
 
   endScope();
+  if (klass->superclass != nullptr)
+  {
+    endScope();
+  }
+
   currentClass = enclosingClass;
   return nullptr;
 }
@@ -235,6 +256,25 @@ std::shared_ptr<lox::LoxObject> Resolver::visitThis(std::shared_ptr<This> expr)
       " at '" + expr->keyword.lexeme + "'",
       "Cannot use 'this' outside of a class.");
     return nullptr;
+  }
+
+  resolveLocal(expr, expr->keyword);
+  return nullptr;
+}
+
+std::shared_ptr<LoxObject> Resolver::visitSuper(std::shared_ptr<Super> expr)
+{
+  if (currentClass == NONEC)
+  {
+    errorHandler.add(expr->keyword.line,
+      " at '" + expr->keyword.lexeme + "'",
+      "Cannot use 'super' outside of a class.");
+  }
+  else if (currentClass != SUBCLASS)
+  {
+    errorHandler.add(expr->keyword.line,
+      " at '" + expr->keyword.lexeme + "'",
+      "Cannot use 'super' in a class without a superclass.");
   }
 
   resolveLocal(expr, expr->keyword);

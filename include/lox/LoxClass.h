@@ -14,10 +14,12 @@ class LoxClass : public LoxCallable
 {
 private:
   std::string name;
+  std::shared_ptr<LoxClass> superclass;
   std::map<std::string, std::shared_ptr<LoxObject>> methods;
 
 public:
   LoxClass(const std::string& name,
+           std::shared_ptr<LoxClass> superclass,
            std::map<std::string, std::shared_ptr<LoxObject>> methods);
   virtual std::shared_ptr<LoxObject> call(Interpreter*, std::vector<std::shared_ptr<LoxObject>>&) override;
   virtual unsigned arity() const override;

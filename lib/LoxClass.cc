@@ -3,11 +3,13 @@
 #include "lox/LoxInstance.h"
 
 LoxClass::LoxClass(
-  const std::string& name,
-  std::map<std::string, std::shared_ptr<LoxObject>> methods) :
-    LoxCallable(LoxObject::CLASS),
-    name(name),
-    methods(methods)
+    const std::string& name,
+    std::shared_ptr<LoxClass> superclass,
+    std::map<std::string, std::shared_ptr<LoxObject>> methods) :
+  LoxCallable(LoxObject::CLASS),
+  name(name),
+  superclass(superclass),
+  methods(methods)
 {}
 
 std::shared_ptr<LoxObject> LoxClass::call(
@@ -45,7 +47,18 @@ std::string LoxClass::getName() const
 std::shared_ptr<LoxObject> LoxClass::findMethod(const std::string& name) const
 {
   auto method = methods.find(name);
-  return (method == methods.end()) ? nullptr : method->second;
+  if (method != methods.end())
+  {
+    return method->second;
+  }
+
+  // walk up the class chain if method not found
+  if (superclass != nullptr)
+  {
+    return superclass->findMethod(name);
+  }
+
+  return nullptr;
 }
 
 std::shared_ptr<LoxObject> LoxClass::findMethod(const Token& name) const

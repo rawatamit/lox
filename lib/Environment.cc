@@ -13,6 +13,11 @@ lox::Environment* lox::Environment::ancestor(int depth)
   return env;
 }
 
+std::shared_ptr<lox::Environment> lox::Environment::getEnclosing() const
+{
+  return enclosing;
+}
+
 int lox::Environment::depth() const
 {
   int depth = 0;

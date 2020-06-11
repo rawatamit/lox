@@ -101,7 +101,25 @@ std::shared_ptr<LoxObject> Interpreter::evaluate(std::shared_ptr<Expr> expr)
 
 std::shared_ptr<LoxObject> Interpreter::visitClass(std::shared_ptr<Class> klass)
 {
+  std::shared_ptr<LoxObject> superclass = nullptr;
+
+  if (klass->superclass != nullptr)
+  {
+    superclass = evaluate(klass->superclass);
+    if (superclass->getType() != LoxObject::CLASS)
+    {
+      throw RuntimeException(klass->superclass->name,
+       "Superclass must be a class.");
+    }
+  }
+
   env->define(klass->name.lexeme, nullptr);
+
+  if (klass->superclass != nullptr)
+  {
+    env = std::make_shared<Environment>(env);
+    env->define("super", superclass);
+  }
 
   std::map<std::string, std::shared_ptr<LoxObject>> methods;
   for (std::shared_ptr<Function> method : klass->methods)
@@ -113,7 +131,16 @@ std::shared_ptr<LoxObject> Interpreter::visitClass(std::shared_ptr<Class> klass)
   }
 
   auto loxklass =
-    std::make_shared<LoxClass>(klass->name.lexeme, methods);
+    std::make_shared<LoxClass>(
+      klass->name.lexeme,
+      std::static_pointer_cast<LoxClass>(superclass),
+      methods);
+  
+  if (superclass != nullptr)
+  {
+    env = env->getEnclosing();
+  }
+
   env->assign(klass->name, loxklass);
   return nullptr;
 }
@@ -357,6 +384,31 @@ std::shared_ptr<LoxObject> Interpreter::visitThis(std::shared_ptr<This> expr)
 {
   return lookupVariable(expr->keyword,
     std::dynamic_pointer_cast<Expr>(expr));
+}
+
+std::shared_ptr<LoxObject> Interpreter::visitSuper(std::shared_ptr<Super> expr)
+{
+  int distance = locals.find(expr)->second;
+
+  std::shared_ptr<LoxClass> superclass =
+    std::static_pointer_cast<LoxClass>(
+      env->get(distance, "super"));
+
+  std::shared_ptr<LoxInstance> object =
+    std::static_pointer_cast<LoxInstance>(
+      env->get(distance - 1, "this"));
+  
+  std::shared_ptr<LoxFunction> method =
+    std::static_pointer_cast<LoxFunction>(
+      superclass->findMethod(expr->method.lexeme));
+  
+  if (method == nullptr)
+  {
+    throw RuntimeException(expr->method,                          
+        "Undefined property '" + expr->method.lexeme + "'.");     
+  }
+
+  return method->bind(object);
 }
 
 std::shared_ptr<LoxObject> Interpreter::visitGroupingExpr(std::shared_ptr<GroupingExpr> expr)

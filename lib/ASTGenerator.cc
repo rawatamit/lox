@@ -164,6 +164,7 @@ int main(int argc, char** argv) {
              "Logical  : std::shared_ptr<Expr> left, Token Operator, std::shared_ptr<Expr> right",
              "Set      : std::shared_ptr<Expr> object, Token name, std::shared_ptr<Expr> value",
              "This     : Token keyword",
+             "Super    : Token keyword, Token method",
              "UnaryExpr    :Token Operator, std::shared_ptr<Expr> right",
              "Variable     :Token name"}};
         ASTGenerator exprGenerator(outDir, exprSpec);
@@ -172,7 +173,7 @@ int main(int argc, char** argv) {
         const ASTGenerator::ASTSpecification stmtSpec = {
             "Stmt",
             {"Block      : std::vector<std::shared_ptr<Stmt>> stmts",
-             "Class      : Token name, std::vector<std::shared_ptr<Function>> methods",
+             "Class      : Token name, std::shared_ptr<Variable> superclass, std::vector<std::shared_ptr<Function>> methods",
              "Expression : std::shared_ptr<Expr> expr",
              "Function   : Token name, std::vector<Token> params, std::vector<std::shared_ptr<Stmt>> body",
              "If         : std::shared_ptr<Expr> condition, std::shared_ptr<Stmt> thenBranch, std::shared_ptr<Stmt> elseBranch",
