@@ -7,8 +7,9 @@
 
 typedef struct Chunk Chunk;
 typedef struct Parser Parser;
+typedef struct VM VM;
 
-bool compile(const char *src, Chunk *chunk);
+bool compile(VM *vm, const char *src, Chunk *chunk);
 void emit_byte(Parser *parser, uint8_t byte);
 void emit_return(Parser *parser);
 void emit_constant(Parser *parser, Value value);

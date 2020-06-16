@@ -4,8 +4,13 @@
 #include "Scanner.h"
 #include <stdbool.h>
 
+typedef struct VM VM;
+
 struct Parser {
   Scanner *scanner;
+  // current VM, we may allocate objects
+  // for a VM, so it makes sense to have it here
+  VM *vm;
   Token current;
   Token previous;
   bool had_error;
@@ -48,6 +53,8 @@ void binary(Parser *parser);
 void grouping(Parser *parser);
 void unary(Parser *parser);
 void number(Parser *parser);
+void string(Parser *parser);
+void literal(Parser *parser);
 void advance(Parser *parser);
 void consume(Parser *parser, TokenType type, const char *message);
 ParseRule *get_rule(TokenType type);

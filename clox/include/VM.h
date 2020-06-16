@@ -3,6 +3,7 @@
 
 #include "Chunk.h"
 #include "InterpretResult.h"
+#include "Object.h"
 
 #define STACK_MAX 256
 
@@ -11,6 +12,7 @@ struct VM {
   uint8_t *ip;
   Value stack[STACK_MAX];
   Value *stack_top;
+  Obj *objects;
 };
 
 typedef struct VM VM;
@@ -20,5 +22,6 @@ void free_VM(VM *vm);
 InterpretResult interpret(VM *vm, const char *src);
 void push(VM *vm, Value value);
 Value pop(VM *vm);
+Value peek(VM *vm, size_t index);
 
 #endif

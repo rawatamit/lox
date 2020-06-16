@@ -7,6 +7,7 @@ add_library(vmlib
             Memory.c
             Debug.c
             Value.c
+            Object.c
             VM.c
             Scanner.c
             Parser.c
