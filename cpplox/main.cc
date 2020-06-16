@@ -76,7 +76,6 @@ static void runPrompt(ErrorHandler &errorHandler) {
 }
 } // namespace lox
 
-#if 1
 int main(int argc, char **argv) {
   lox::ErrorHandler errorHandler;
   if (argc > 2) {
@@ -88,15 +87,3 @@ int main(int argc, char **argv) {
   }
   return 0;
 }
-#endif
-
-#if 0
-#include <any>
-#include <type_traits>
-
-int main()
-{
-  std::any a = std::make_any<bool>(false);
-  std::cout << typeid(a).name() << '\n';
-}
-#endif
