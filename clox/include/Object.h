@@ -2,6 +2,7 @@
 #define _OBJECT_H_
 
 #include "Value.h"
+#include <stdint.h>
 
 typedef struct VM VM;
 
@@ -23,6 +24,7 @@ struct ObjString {
   Obj obj;
   size_t length;
   char *chars;
+  uint32_t hash;
 };
 
 typedef struct ObjString ObjString;
@@ -32,7 +34,7 @@ ObjType object_type(Value value);
 ObjString *copy_string(VM *vm, const char *chars, size_t length);
 Value concatenate(VM *vm, ObjString *sa, ObjString *sb);
 ObjString *take_string(VM *vm, char *chars, int length);
-ObjString *allocate_string(VM *vm, char *chars, size_t length);
+ObjString *allocate_string(VM *vm, char *chars, size_t length, uint32_t hash);
 void print_object(Value value);
 
 bool is_equal_object(Obj *obja, Obj *objb);
@@ -41,5 +43,7 @@ bool is_string(Value value);
 
 ObjString *as_string(Value value);
 char *as_cstring(Value value);
+
+uint32_t hash_string(const char *key, int length);
 
 #endif

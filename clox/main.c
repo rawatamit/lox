@@ -6,12 +6,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static void repl(VM *vm) {
+static void repl(VM *vm)
+{
   char line[1024];
-  for (;;) {
+  for (;;)
+  {
     printf("> ");
 
-    if (!fgets(line, sizeof(line), stdin)) {
+    if (!fgets(line, sizeof(line), stdin))
+    {
       putchar('\n');
       break;
     }
@@ -20,10 +23,12 @@ static void repl(VM *vm) {
   }
 }
 
-static char *read_file(const char *path) {
+static char *read_file(const char *path)
+{
   FILE *file = fopen(path, "r");
 
-  if (file == NULL) {
+  if (file == NULL)
+  {
     fprintf(stderr, "Could not open file \"%s\".\n", path);
     exit(74);
   }
@@ -33,14 +38,16 @@ static char *read_file(const char *path) {
   rewind(file);
 
   char *buffer = malloc(file_size + 1);
-  if (buffer == NULL) {
+  if (buffer == NULL)
+  {
     fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
     exit(74);
   }
 
   size_t bytes_read = fread(buffer, sizeof(char), file_size, file);
 
-  if (bytes_read < file_size) {
+  if (bytes_read < file_size)
+  {
     fprintf(stderr, "Could not read file \"%s\".\n", path);
     exit(74);
   }
@@ -50,7 +57,8 @@ static char *read_file(const char *path) {
   return buffer;
 }
 
-static void run_file(VM *vm, const char *path) {
+static void run_file(VM *vm, const char *path)
+{
   char *src = read_file(path);
   InterpretResult result = interpret(vm, src);
   free(src);
@@ -61,39 +69,24 @@ static void run_file(VM *vm, const char *path) {
     exit(70);
 }
 
-int main(int argc, const char *argv[]) {
+int main(int argc, const char *argv[])
+{
   VM vm;
   init_VM(&vm);
 
-  if (argc == 1) {
+  if (argc == 1)
+  {
     repl(&vm);
-  } else if (argc == 2) {
+  }
+  else if (argc == 2)
+  {
     run_file(&vm, argv[1]);
-  } else {
+  }
+  else
+  {
     fprintf(stderr, "Usage: clox [path]\n");
   }
 
   free_VM(&vm);
-#if 0
-  Chunk chunk;
-  init_chunk(&chunk);
-  write_chunk(&chunk, OP_CONSTANT, 1);
-  uint8_t const_index = add_constant(&chunk, 2.4);
-  write_chunk(&chunk, const_index, 1);
-  write_chunk(&chunk, OP_CONSTANT, 2);
-  uint8_t const_index_2 = add_constant(&chunk, 3.6);
-  write_chunk(&chunk, const_index_2, 2);
-  write_chunk(&chunk, OP_ADD, 2);
-  write_chunk(&chunk, OP_CONSTANT, 3);
-  uint8_t const_index_3 = add_constant(&chunk, 3.9);
-  write_chunk(&chunk, const_index_3, 3);
-  write_chunk(&chunk, OP_DIVIDE, 2);
-  write_chunk(&chunk, OP_RETURN, 4);
-#ifdef DEBUG_DISASSEMBLE
-  disassemble_chunk(&chunk, "test chunk");
-#endif
-  interpret(&vm, &chunk);
-  free_chunk(&chunk);
-#endif
   return 0;
 }

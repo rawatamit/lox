@@ -18,11 +18,13 @@ static InterpretResult binary_op(VM *vm, Value (*fn)(Value, Value));
 void init_VM(VM *vm)
 {
   reset_stack(vm);
+  init_table(&vm->strings);
   vm->objects = NULL;
 }
 
 void free_VM(VM *vm)
 {
+  free_table(&vm->strings);
   Obj *object = vm->objects;
 
   while (object != NULL)

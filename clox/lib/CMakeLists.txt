@@ -11,4 +11,5 @@ add_library(vmlib
             VM.c
             Scanner.c
             Parser.c
+            Table.c
             Compiler.c)
