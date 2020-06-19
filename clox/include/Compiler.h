@@ -43,6 +43,7 @@ void begin_scope(Compiler *compiler);
 void end_scope(Compiler *compiler);
 void emit_byte(Compiler *compiler, uint8_t byte);
 void emit_bytes(Compiler *compiler, uint8_t byte1, uint8_t byte2);
+void emit_loop(Compiler *compiler, int loop_start);
 void emit_return(Compiler *compiler);
 void emit_constant(Compiler *compiler, Value value);
 int emit_jump(Compiler *compiler, uint8_t inst);

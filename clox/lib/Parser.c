@@ -167,7 +167,7 @@ ParseRule rules[] = {
     {variable, NULL, PREC_NONE},     // TOKEN_IDENTIFIER
     {string, NULL, PREC_NONE},       // TOKEN_STRING
     {number, NULL, PREC_NONE},       // TOKEN_NUMBER
-    {NULL, NULL, PREC_NONE},         // TOKEN_AND
+    {NULL, logical_and, PREC_AND},   // TOKEN_AND
     {NULL, NULL, PREC_NONE},         // TOKEN_CLASS
     {NULL, NULL, PREC_NONE},         // TOKEN_ELSE
     {literal, NULL, PREC_NONE},      // TOKEN_FALSE
@@ -175,7 +175,7 @@ ParseRule rules[] = {
     {NULL, NULL, PREC_NONE},         // TOKEN_FUN
     {NULL, NULL, PREC_NONE},         // TOKEN_IF
     {literal, NULL, PREC_NONE},      // TOKEN_NIL
-    {NULL, NULL, PREC_NONE},         // TOKEN_OR
+    {NULL, logical_or, PREC_OR},     // TOKEN_OR
     {NULL, NULL, PREC_NONE},         // TOKEN_PRINT
     {NULL, NULL, PREC_NONE},         // TOKEN_RETURN
     {NULL, NULL, PREC_NONE},         // TOKEN_SUPER

@@ -42,6 +42,8 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset)
     return byte_instruction("OP_SET_LOCAL", chunk, offset);
   case OP_PRINT:
     return simple_instruction("OP_PRINT", offset);
+  case OP_LOOP:
+    return jump_instruction("OP_LOOP", -1, chunk, offset);
   case OP_JUMP:
     return jump_instruction("OP_JUMP", 1, chunk, offset);
   case OP_JUMP_IF_FALSE:

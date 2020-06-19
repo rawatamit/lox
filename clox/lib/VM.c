@@ -139,6 +139,13 @@ InterpretResult run(VM *vm)
       putchar('\n');
       break;
 
+    case OP_LOOP:
+    {
+      uint16_t offset = read_short(vm);
+      vm->ip -= offset;
+      break;
+    }
+
     case OP_JUMP:
     {
       uint16_t offset = read_short(vm);

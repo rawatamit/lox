@@ -123,6 +123,17 @@ void end_scope(Compiler *compiler)
   }
 }
 
+void emit_loop(Compiler *compiler, int loop_start)
+{
+  emit_byte(compiler, OP_LOOP);
+  int offset = current_chunk(compiler)->size - loop_start + 2;
+  if (offset > UINT16_MAX)
+    error(compiler, "Loop body too large.");
+
+  emit_byte(compiler, (offset >> 8) & 0xff);
+  emit_byte(compiler, offset & 0xff);
+}
+
 void emit_byte(Compiler *compiler, uint8_t byte)
 {
   write_chunk(current_chunk(compiler), byte, compiler->parser->previous.line);
@@ -183,7 +194,7 @@ void end_compiler(Compiler *compiler)
 #ifdef DEBUG_PRINT_CODE
   if (!compiler->parser->had_error)
   {
-    disassemble_chunk(current_chunk(), "code");
+    disassemble_chunk(current_chunk(compiler), "code");
   }
 #endif
 }
@@ -247,6 +258,16 @@ void statement(Compiler *compiler)
     if_statement(compiler);
     break;
 
+  case TOKEN_WHILE:
+    match(compiler, TOKEN_WHILE);
+    while_statement(compiler);
+    break;
+
+  case TOKEN_FOR:
+    match(compiler, TOKEN_FOR);
+    for_statement(compiler);
+    break;
+
   default:
     expression_statement(compiler);
     break;
@@ -272,6 +293,77 @@ void if_statement(Compiler *compiler)
   }
 
   patch_jump(compiler, else_jmp);
+}
+
+void while_statement(Compiler *compiler)
+{
+  int loop_start = current_chunk(compiler)->size;
+  consume(compiler, TOKEN_LEFT_PAREN, "Expected '(' after 'while'.");
+  expression(compiler);
+  consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after condition.");
+
+  int exit_jump = emit_jump(compiler, OP_JUMP_IF_FALSE);
+  emit_byte(compiler, OP_POP);
+  statement(compiler);
+  emit_loop(compiler, loop_start);
+  patch_jump(compiler, exit_jump);
+  emit_byte(compiler, OP_POP);
+}
+
+void for_statement(Compiler *compiler)
+{
+  begin_scope(compiler);
+  consume(compiler, TOKEN_LEFT_PAREN, "Expected '(' after 'for'.");
+
+  if (match(compiler, TOKEN_SEMICOLON))
+  {
+    // nothing to do
+  }
+  else if (match(compiler, TOKEN_VAR))
+  {
+    var_declaration(compiler);
+  }
+  else
+  {
+    expression_statement(compiler);
+  }
+
+  int loop_start = current_chunk(compiler)->size;
+
+  int exit_jump = -1;
+  if (!match(compiler, TOKEN_SEMICOLON))
+  {
+    expression(compiler);
+    consume(compiler, TOKEN_SEMICOLON, "Expected ';' after loop condition.");
+
+    // jump out of loop if false
+    exit_jump = emit_jump(compiler, OP_JUMP_IF_FALSE);
+    emit_byte(compiler, OP_POP);
+  }
+
+  if (!match(compiler, TOKEN_RIGHT_PAREN))
+  {
+    int body_jump = emit_jump(compiler, OP_JUMP);
+    int increment_start = current_chunk(compiler)->size;
+    expression(compiler);
+    emit_byte(compiler, OP_POP);
+    consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after for clauses.");
+
+    emit_loop(compiler, loop_start);
+    loop_start = increment_start;
+    patch_jump(compiler, body_jump);
+  }
+
+  statement(compiler);
+
+  emit_loop(compiler, loop_start);
+  if (exit_jump != -1)
+  {
+    patch_jump(compiler, exit_jump);
+    emit_byte(compiler, OP_POP);
+  }
+
+  end_scope(compiler);
 }
 
 void expression_statement(Compiler *compiler)
@@ -304,6 +396,26 @@ void grouping(Compiler *compiler, bool can_assign)
 {
   expression(compiler);
   consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after expression.");
+}
+
+void logical_and(Compiler *compiler, bool can_assign)
+{
+  int end_jump = emit_jump(compiler, OP_JUMP_IF_FALSE);
+  emit_byte(compiler, OP_POP);
+  parse_precedence(compiler, PREC_AND);
+  patch_jump(compiler, end_jump);
+}
+
+void logical_or(Compiler *compiler, bool can_assign)
+{
+  int else_jump = emit_jump(compiler, OP_JUMP_IF_FALSE);
+  int end_jump = emit_jump(compiler, OP_JUMP);
+
+  patch_jump(compiler, else_jump);
+  emit_byte(compiler, OP_POP);
+
+  parse_precedence(compiler, PREC_OR);
+  patch_jump(compiler, end_jump);
 }
 
 void unary(Compiler *compiler, bool can_assign)
