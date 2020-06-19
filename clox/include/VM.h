@@ -15,6 +15,7 @@ struct VM {
   Value *stack_top;
   Obj *objects;
   Table strings;
+  Table globals;
 };
 
 typedef struct VM VM;

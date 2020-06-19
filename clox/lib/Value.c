@@ -1,6 +1,7 @@
 #include "Value.h"
 #include "Memory.h"
 #include <stdint.h>
+#include <stdio.h>
 
 void init_value_array(ValueArray *array)
 {
@@ -26,6 +27,27 @@ void free_value_array(ValueArray *array)
 {
   reallocate(array->values, array->capacity, 0);
   init_value_array(array);
+}
+
+void print_value(Value value)
+{
+  switch (value.type)
+  {
+  case VAL_BOOL:
+    fprintf(stdout, as_bool(value) ? "true" : "false");
+    break;
+  case VAL_NIL:
+    fprintf(stdout, "nil");
+    break;
+  case VAL_NUMBER:
+    fprintf(stdout, "%g", as_number(value));
+    break;
+  case VAL_OBJ:
+    print_object(value);
+    break;
+  default:
+    break;
+  }
 }
 
 Value add(Value a, Value b)

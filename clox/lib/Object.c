@@ -82,7 +82,7 @@ void print_object(Value value)
   switch (object_type(value))
   {
   case OBJ_STRING:
-    fprintf(stderr, "%s", as_cstring(value));
+    fprintf(stdout, "%s", as_cstring(value));
     break;
 
   default:

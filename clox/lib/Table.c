@@ -143,7 +143,7 @@ void add_element(Entry **front, Entry **rear, Entry *entry)
   }
   else
   {
-    (*rear)->next = entry;
-    *rear = entry;
+    entry->next = *front;
+    *front = entry;
   }
 }

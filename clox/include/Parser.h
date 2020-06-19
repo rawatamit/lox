@@ -3,14 +3,13 @@
 
 #include "Scanner.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct VM VM;
+typedef struct Compiler Compiler;
 
 struct Parser {
   Scanner *scanner;
-  // current VM, we may allocate objects
-  // for a VM, so it makes sense to have it here
-  VM *vm;
   Token current;
   Token previous;
   bool had_error;
@@ -35,7 +34,7 @@ enum Precedence {
 
 typedef enum Precedence Precedence;
 
-typedef void (*ParseFn)();
+typedef void (*ParseFn)(Compiler *compiler, bool can_assign);
 
 struct ParseRule {
   ParseFn prefix;
@@ -48,19 +47,32 @@ typedef struct ParseRule ParseRule;
 extern ParseRule rules[];
 
 void init_parser(Parser *parser, Scanner *scanner);
-void expression(Parser *parser);
-void binary(Parser *parser);
-void grouping(Parser *parser);
-void unary(Parser *parser);
-void number(Parser *parser);
-void string(Parser *parser);
-void literal(Parser *parser);
-void advance(Parser *parser);
-void consume(Parser *parser, TokenType type, const char *message);
+void declaration(Compiler *compiler);
+void var_declaration(Compiler *compiler);
+void statement(Compiler *compiler);
+void if_statement(Compiler *compiler);
+void expression_statement(Compiler *compiler);
+void print_statement(Compiler *compiler);
+void block(Compiler *compiler);
+void expression(Compiler *compiler);
+void binary(Compiler *compiler, bool can_assign);
+void grouping(Compiler *compiler, bool can_assign);
+void unary(Compiler *compiler, bool can_assign);
+void number(Compiler *compiler, bool can_assign);
+void string(Compiler *compiler, bool can_assign);
+void literal(Compiler *compiler, bool can_assign);
+void variable(Compiler *compiler, bool can_assign);
+uint8_t parse_variable(Compiler *compiler, const char *msg);
+uint8_t identifier_constant(Compiler *compiler, Token *name);
+void advance(Compiler *compiler);
+bool check(Compiler *compiler, TokenType type);
+bool match(Compiler *compiler, TokenType type);
+void consume(Compiler *compiler, TokenType type, const char *message);
+void synchronize(Compiler *compiler);
 ParseRule *get_rule(TokenType type);
-void parse_precedence(Parser *parser, Precedence precedence);
-void error_at_current(Parser *parser, const char *message);
-void error(Parser *parser, const char *message);
-void error_at(Parser *parser, Token *token, const char *message);
+void parse_precedence(Compiler *compiler, Precedence precedence);
+void error_at_current(Compiler *compiler, const char *message);
+void error(Compiler *compiler, const char *message);
+void error_at(Compiler *compiler, Token *token, const char *message);
 
 #endif

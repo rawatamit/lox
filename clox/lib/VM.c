@@ -8,8 +8,9 @@
 #include <stdarg.h>
 
 static uint8_t read_byte(VM *vm);
+static uint16_t read_short(VM *vm);
 static Value read_constant(VM *vm);
-static void print_value(Value constant);
+static ObjString *read_string(VM *vm);
 static InterpretResult run(VM *vm);
 static void reset_stack(VM *vm);
 static void runtime_error(VM *vm, const char *format, ...);
@@ -19,14 +20,16 @@ void init_VM(VM *vm)
 {
   reset_stack(vm);
   init_table(&vm->strings);
+  init_table(&vm->globals);
   vm->objects = NULL;
 }
 
 void free_VM(VM *vm)
 {
   free_table(&vm->strings);
-  Obj *object = vm->objects;
+  free_table(&vm->globals);
 
+  Obj *object = vm->objects;
   while (object != NULL)
   {
     Obj *next = object->next;
@@ -83,9 +86,77 @@ InterpretResult run(VM *vm)
 
     switch (inst)
     {
-    case OP_RETURN:
+    case OP_DEFINE_GLOBAL:
+    {
+      ObjString *name = read_string(vm);
+      table_set(&vm->globals, name, peek(vm, 0));
+      pop(vm);
+      break;
+    }
+
+    case OP_GET_GLOBAL:
+    {
+      ObjString *name = read_string(vm);
+      Value value;
+      if (!table_get(&vm->globals, name, &value))
+      {
+        runtime_error(vm, "Undefined variable '%s'.", name->chars);
+        return INTERPRET_RUNTIME_ERROR;
+      }
+
+      push(vm, value);
+      break;
+    }
+
+    case OP_SET_GLOBAL:
+    {
+      ObjString *name = read_string(vm);
+      if (table_set(&vm->globals, name, peek(vm, 0)))
+      {
+        table_delete(&vm->globals, name);
+        runtime_error(vm, "Undefined variable '%s'.", name->chars);
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      break;
+    }
+
+    case OP_GET_LOCAL:
+    {
+      uint8_t slot = read_byte(vm);
+      push(vm, vm->stack[slot]);
+      break;
+    }
+
+    case OP_SET_LOCAL:
+    {
+      uint8_t slot = read_byte(vm);
+      vm->stack[slot] = peek(vm, 0);
+      break;
+    }
+
+    case OP_PRINT:
       print_value(pop(vm));
-      printf("\n");
+      putchar('\n');
+      break;
+
+    case OP_JUMP:
+    {
+      uint16_t offset = read_short(vm);
+      vm->ip += offset;
+      break;
+    }
+
+    case OP_JUMP_IF_FALSE:
+    {
+      uint16_t offset = read_short(vm);
+      if (is_falsey(peek(vm, 0)))
+      {
+        vm->ip += offset;
+      }
+      break;
+    }
+
+    case OP_RETURN:
       return INTERPRET_OK;
 
     case OP_CONSTANT:
@@ -167,6 +238,10 @@ InterpretResult run(VM *vm)
       push(vm, bool_val(false));
       break;
 
+    case OP_POP:
+      pop(vm);
+      break;
+
     case OP_EQUAL:
     {
       Value b = pop(vm);
@@ -197,13 +272,22 @@ InterpretResult run(VM *vm)
 
 uint8_t read_byte(VM *vm) { return *vm->ip++; }
 
+uint16_t read_short(VM *vm)
+{
+  vm->ip += 2;
+  return (uint16_t)((vm->ip[-2] << 8) | vm->ip[-1]);
+}
+
 Value read_constant(VM *vm)
 {
   uint8_t index = read_byte(vm);
   return vm->chunk->constants.values[index];
 }
 
-void print_value(Value constant) { printf("%lf", as_number(constant)); }
+ObjString *read_string(VM *vm)
+{
+  return as_string(read_constant(vm));
+}
 
 void reset_stack(VM *vm) { vm->stack_top = vm->stack; }
 
@@ -211,9 +295,9 @@ static void runtime_error(VM *vm, const char *format, ...)
 {
   va_list args;
   va_start(args, format);
-  vfprintf(stderr, format, args);
+  vfprintf(stdout, format, args);
   va_end(args);
-  fputs("\n", stderr);
+  putc('\n', stderr);
 
   size_t instruction = vm->ip - vm->chunk->code - 1;
   int line = vm->chunk->lines[instruction];
