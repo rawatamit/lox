@@ -6,11 +6,13 @@
 #include "Object.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
+#include <time.h>
 
-static uint8_t read_byte(VM *vm);
-static uint16_t read_short(VM *vm);
-static Value read_constant(VM *vm);
-static ObjString *read_string(VM *vm);
+static uint8_t read_byte(CallFrame *);
+static uint16_t read_short(CallFrame *);
+static Value read_constant(CallFrame *);
+static ObjString *read_string(CallFrame *);
 static InterpretResult run(VM *vm);
 static void reset_stack(VM *vm);
 static void runtime_error(VM *vm, const char *format, ...);
@@ -21,6 +23,7 @@ void init_VM(VM *vm)
   reset_stack(vm);
   init_table(&vm->strings);
   init_table(&vm->globals);
+  define_native(vm, "clock", clock_native);
   vm->objects = NULL;
 }
 
@@ -40,21 +43,18 @@ void free_VM(VM *vm)
 
 InterpretResult interpret(VM *vm, const char *src)
 {
-  Chunk chunk;
-  init_chunk(&chunk);
-
-  if (!compile(vm, src, &chunk))
+  ObjFunction *fn = compile(vm, src);
+  if (fn == NULL)
   {
-    free_chunk(&chunk);
     return INTERPRET_COMPILE_ERROR;
   }
 
-  vm->chunk = &chunk;
-  vm->ip = vm->chunk->code;
-
-  InterpretResult res = run(vm);
-  free_chunk(&chunk);
-  return res;
+  push(vm, object_val((Obj *)fn));
+  ObjClosure *closure = new_closure(vm, fn);
+  pop(vm);
+  push(vm, object_val((Obj *)closure));
+  call_value(vm, object_val((Obj *)closure), 0);
+  return run(vm);
 }
 
 void push(VM *vm, Value value) { *vm->stack_top++ = value; }
@@ -66,8 +66,59 @@ Value peek(VM *vm, size_t index)
   return vm->stack_top[-1 - index];
 }
 
+static bool call(VM *vm, ObjClosure *closure, int arg_count)
+{
+  if (arg_count != closure->fn->arity)
+  {
+    runtime_error(vm, "Expected %d arguments but got %d.",
+                  closure->fn->arity, arg_count);
+    return false;
+  }
+
+  if (vm->frame_count == FRAMES_MAX)
+  {
+    runtime_error(vm, "Stack overflow.");
+    return false;
+  }
+
+  CallFrame *frame = &vm->frames[vm->frame_count++];
+  frame->closure = closure;
+  frame->ip = closure->fn->chunk.code;
+  frame->slots = vm->stack_top - arg_count - 1;
+  return true;
+}
+
+bool call_value(VM *vm, Value callee, int arg_count)
+{
+  if (is_object(callee))
+  {
+    switch (object_type(callee))
+    {
+    case OBJ_CLOSURE:
+      return call(vm, as_closure(callee), arg_count);
+
+    case OBJ_NATIVE:
+    {
+      NativeFn fn = as_native(callee);
+      Value res = fn(arg_count, vm->stack_top - arg_count);
+      vm->stack_top -= arg_count + 1;
+      push(vm, res);
+      return true;
+    }
+
+    default:
+      break;
+    }
+  }
+
+  runtime_error(vm, "Can only call functions and classes.");
+  return false;
+}
+
 InterpretResult run(VM *vm)
 {
+  CallFrame *frame = &vm->frames[vm->frame_count - 1];
+
   for (;;)
   {
 #ifdef DEBUG_TRACE_EXECUTION
@@ -79,16 +130,24 @@ InterpretResult run(VM *vm)
       printf(" ]");
     }
     putchar('\n');
-    disassemble_instruction(vm->chunk, (size_t)(vm->ip - vm->chunk->code));
+    disassemble_instruction(&frame->closure->fn->chunk, (size_t)(frame->ip - frame->closure->fn->chunk.code));
 #endif
 
-    uint8_t inst = read_byte(vm);
+    uint8_t inst = read_byte(frame);
 
     switch (inst)
     {
+    case OP_CLOSURE:
+    {
+      ObjFunction *fn = as_function(read_constant(frame));
+      ObjClosure *closure = new_closure(vm, fn);
+      push(vm, object_val((Obj *)closure));
+      break;
+    }
+
     case OP_DEFINE_GLOBAL:
     {
-      ObjString *name = read_string(vm);
+      ObjString *name = read_string(frame);
       table_set(&vm->globals, name, peek(vm, 0));
       pop(vm);
       break;
@@ -96,7 +155,7 @@ InterpretResult run(VM *vm)
 
     case OP_GET_GLOBAL:
     {
-      ObjString *name = read_string(vm);
+      ObjString *name = read_string(frame);
       Value value;
       if (!table_get(&vm->globals, name, &value))
       {
@@ -110,7 +169,7 @@ InterpretResult run(VM *vm)
 
     case OP_SET_GLOBAL:
     {
-      ObjString *name = read_string(vm);
+      ObjString *name = read_string(frame);
       if (table_set(&vm->globals, name, peek(vm, 0)))
       {
         table_delete(&vm->globals, name);
@@ -122,15 +181,15 @@ InterpretResult run(VM *vm)
 
     case OP_GET_LOCAL:
     {
-      uint8_t slot = read_byte(vm);
-      push(vm, vm->stack[slot]);
+      uint8_t slot = read_byte(frame);
+      push(vm, frame->slots[slot]);
       break;
     }
 
     case OP_SET_LOCAL:
     {
-      uint8_t slot = read_byte(vm);
-      vm->stack[slot] = peek(vm, 0);
+      uint8_t slot = read_byte(frame);
+      frame->slots[slot] = peek(vm, 0);
       break;
     }
 
@@ -141,34 +200,60 @@ InterpretResult run(VM *vm)
 
     case OP_LOOP:
     {
-      uint16_t offset = read_short(vm);
-      vm->ip -= offset;
+      uint16_t offset = read_short(frame);
+      frame->ip -= offset;
       break;
     }
 
     case OP_JUMP:
     {
-      uint16_t offset = read_short(vm);
-      vm->ip += offset;
+      uint16_t offset = read_short(frame);
+      frame->ip += offset;
       break;
     }
 
     case OP_JUMP_IF_FALSE:
     {
-      uint16_t offset = read_short(vm);
+      uint16_t offset = read_short(frame);
       if (is_falsey(peek(vm, 0)))
       {
-        vm->ip += offset;
+        frame->ip += offset;
       }
       break;
     }
 
+    case OP_CALL:
+    {
+      int arg_count = read_byte(frame);
+      if (!call_value(vm, peek(vm, arg_count), arg_count))
+      {
+        return INTERPRET_RUNTIME_ERROR;
+      }
+      frame = &vm->frames[vm->frame_count - 1];
+      break;
+    }
+
     case OP_RETURN:
-      return INTERPRET_OK;
+    {
+      Value res = pop(vm);
+      --vm->frame_count;
+      if (vm->frame_count == 0)
+      {
+        pop(vm);
+        return INTERPRET_OK;
+      }
+      else
+      {
+        vm->stack_top = frame->slots;
+        push(vm, res);
+        frame = &vm->frames[vm->frame_count - 1];
+        break;
+      }
+    }
 
     case OP_CONSTANT:
     {
-      Value constant = read_constant(vm);
+      Value constant = read_constant(frame);
       push(vm, constant);
       break;
     }
@@ -277,26 +362,30 @@ InterpretResult run(VM *vm)
   }
 }
 
-uint8_t read_byte(VM *vm) { return *vm->ip++; }
+uint8_t read_byte(CallFrame *frame) { return *frame->ip++; }
 
-uint16_t read_short(VM *vm)
+uint16_t read_short(CallFrame *frame)
 {
-  vm->ip += 2;
-  return (uint16_t)((vm->ip[-2] << 8) | vm->ip[-1]);
+  frame->ip += 2;
+  return (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]);
 }
 
-Value read_constant(VM *vm)
+Value read_constant(CallFrame *frame)
 {
-  uint8_t index = read_byte(vm);
-  return vm->chunk->constants.values[index];
+  uint8_t index = read_byte(frame);
+  return frame->closure->fn->chunk.constants.values[index];
 }
 
-ObjString *read_string(VM *vm)
+ObjString *read_string(CallFrame *frame)
 {
-  return as_string(read_constant(vm));
+  return as_string(read_constant(frame));
 }
 
-void reset_stack(VM *vm) { vm->stack_top = vm->stack; }
+void reset_stack(VM *vm)
+{
+  vm->stack_top = vm->stack;
+  vm->frame_count = 0;
+}
 
 static void runtime_error(VM *vm, const char *format, ...)
 {
@@ -306,9 +395,24 @@ static void runtime_error(VM *vm, const char *format, ...)
   va_end(args);
   putc('\n', stderr);
 
-  size_t instruction = vm->ip - vm->chunk->code - 1;
-  int line = vm->chunk->lines[instruction];
-  fprintf(stderr, "[line %d] in script\n", line);
+  for (int i = vm->frame_count - 1; i >= 0; i--)
+  {
+    CallFrame *frame = &vm->frames[i];
+    ObjFunction *function = frame->closure->fn;
+    // -1 because the IP is sitting on the next instruction to be
+    // executed.
+    size_t instruction = frame->ip - function->chunk.code - 1;
+    fprintf(stderr, "[line %d] in ",
+            function->chunk.lines[instruction]);
+    if (function->name == NULL)
+    {
+      fprintf(stderr, "script\n");
+    }
+    else
+    {
+      fprintf(stderr, "%s()\n", function->name->chars);
+    }
+  }
 
   reset_stack(vm);
 }
@@ -325,4 +429,18 @@ InterpretResult binary_op(VM *vm, Value (*fn)(Value, Value))
   Value a = pop(vm);
   push(vm, fn(a, b));
   return INTERPRET_OK;
+}
+
+void define_native(VM *vm, const char *name, NativeFn fn)
+{
+  push(vm, object_val((Obj *)copy_string(vm, name, strlen(name))));
+  push(vm, object_val((Obj *)new_native(vm, fn)));
+  table_set(&vm->globals, as_string(vm->stack[0]), vm->stack[1]);
+  pop(vm);
+  pop(vm);
+}
+
+Value clock_native(int arg_count, Value *args)
+{
+  return number_val((double)clock() / CLOCKS_PER_SEC);
 }

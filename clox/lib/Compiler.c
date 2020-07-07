@@ -11,15 +11,33 @@
 #include "Debug.h"
 #endif
 
-static Chunk *current_chunk(Compiler *compiler) { return compiler->chunk; }
+static Chunk *current_chunk(Compiler *compiler) { return &compiler->fn->chunk; }
 
-void init_compiler(Compiler *compiler)
+void init_compiler(Compiler *compiler, Parser *parser, VM *vm,
+                   FunctionType type)
 {
   compiler->local_count = 0;
   compiler->scope_depth = 0;
+  compiler->parser = parser;
+  compiler->vm = vm;
+  compiler->fn = new_function(vm);
+  compiler->fn_type = type;
+
+  if (type != TYPE_SCRIPT)
+  {
+    compiler->fn->name =
+        copy_string(vm,
+                    parser->previous.start,
+                    parser->previous.length);
+  }
+
+  Local *local = &compiler->locals[compiler->local_count++];
+  local->depth = 0;
+  local->name.start = "";
+  local->name.length = 0;
 }
 
-bool compile(VM *vm, const char *src, Chunk *chunk)
+ObjFunction *compile(VM *vm, const char *src)
 {
   Scanner scanner;
   init_scanner(&scanner, src);
@@ -28,10 +46,8 @@ bool compile(VM *vm, const char *src, Chunk *chunk)
   init_parser(&parser, &scanner);
 
   Compiler compiler;
-  init_compiler(&compiler);
-  compiler.parser = &parser;
-  compiler.chunk = chunk;
-  compiler.vm = vm;
+  init_compiler(&compiler, &parser, vm, TYPE_SCRIPT);
+  compiler.fn->name = copy_string(vm, "top-level", 10);
 
   advance(&compiler);
 
@@ -40,8 +56,8 @@ bool compile(VM *vm, const char *src, Chunk *chunk)
     declaration(&compiler);
   }
 
-  end_compiler(&compiler);
-  return !parser.had_error;
+  ObjFunction *fn = end_compiler(&compiler);
+  return parser.had_error ? NULL : fn;
 }
 
 void define_variable(Compiler *compiler, uint8_t global)
@@ -82,6 +98,9 @@ void declare_variable(Compiler *compiler)
 
 void mark_initialized(Compiler *compiler)
 {
+  if (compiler->scope_depth == 0)
+    return;
+
   compiler->locals[compiler->local_count - 1].depth =
       compiler->scope_depth;
 }
@@ -172,7 +191,7 @@ int emit_jump(Compiler *compiler, uint8_t inst)
   return current_chunk(compiler)->size - 2;
 }
 
-void emit_return(Compiler *compiler) { emit_byte(compiler, OP_RETURN); }
+void emit_return(Compiler *compiler) { emit_bytes(compiler, OP_NIL, OP_RETURN); }
 
 uint8_t make_constant(Compiler *compiler, Value value)
 {
@@ -187,16 +206,19 @@ uint8_t make_constant(Compiler *compiler, Value value)
   return (uint8_t)index;
 }
 
-void end_compiler(Compiler *compiler)
+ObjFunction *end_compiler(Compiler *compiler)
 {
   emit_return(compiler);
+  ObjFunction *fn = compiler->fn;
 
 #ifdef DEBUG_PRINT_CODE
   if (!compiler->parser->had_error)
   {
-    disassemble_chunk(current_chunk(compiler), "code");
+    disassemble_chunk(current_chunk(compiler), fn->name->chars);
   }
 #endif
+
+  return fn;
 }
 
 void declaration(Compiler *compiler)
@@ -208,6 +230,11 @@ void declaration(Compiler *compiler)
     var_declaration(compiler);
     break;
 
+  case TOKEN_FUN:
+    match(compiler, TOKEN_FUN);
+    fun_declaration(compiler);
+    break;
+
   default:
     statement(compiler);
     break;
@@ -217,6 +244,47 @@ void declaration(Compiler *compiler)
   {
     synchronize(compiler);
   }
+}
+
+void fun_declaration(Compiler *compiler)
+{
+  uint8_t global = parse_variable(compiler, "Expected function name.");
+  mark_initialized(compiler);
+  function(compiler, TYPE_FUNCTION);
+  define_variable(compiler, global);
+}
+
+void function(Compiler *compiler, FunctionType type)
+{
+  Compiler ncompiler;
+  init_compiler(&ncompiler, compiler->parser, compiler->vm, type);
+
+  begin_scope(&ncompiler);
+
+  // parameter list
+  consume(&ncompiler, TOKEN_LEFT_PAREN, "Expected '(' after function name.");
+  if (!check(&ncompiler, TOKEN_RIGHT_PAREN))
+  {
+    do
+    {
+      ++ncompiler.fn->arity;
+      if (ncompiler.fn->arity > 255)
+      {
+        error_at_current(&ncompiler, "Cannot have more than 255 parameters.");
+      }
+
+      uint8_t param = parse_variable(&ncompiler, "Expected parameter name.");
+      define_variable(&ncompiler, param);
+    } while (match(&ncompiler, TOKEN_COMMA));
+  }
+  consume(&ncompiler, TOKEN_RIGHT_PAREN, "Expected ')' after parameters.");
+
+  // body
+  consume(&ncompiler, TOKEN_LEFT_BRACE, "Expected '{' before function body.");
+  block(&ncompiler);
+
+  ObjFunction *fn = end_compiler(&ncompiler);
+  emit_bytes(compiler, OP_CLOSURE, make_constant(compiler, object_val((Obj *)fn)));
 }
 
 // 'var' ID ('=' expr)? ';'
@@ -266,6 +334,11 @@ void statement(Compiler *compiler)
   case TOKEN_FOR:
     match(compiler, TOKEN_FOR);
     for_statement(compiler);
+    break;
+
+  case TOKEN_RETURN:
+    match(compiler, TOKEN_RETURN);
+    return_statement(compiler);
     break;
 
   default:
@@ -380,6 +453,25 @@ void print_statement(Compiler *compiler)
   emit_byte(compiler, OP_PRINT);
 }
 
+void return_statement(Compiler *compiler)
+{
+  if (compiler->fn_type == TYPE_SCRIPT)
+  {
+    error(compiler, "Cannot return from top-level code.");
+  }
+
+  if (match(compiler, TOKEN_SEMICOLON))
+  {
+    emit_return(compiler);
+  }
+  else
+  {
+    expression(compiler);
+    consume(compiler, TOKEN_SEMICOLON, "Expected ';' after return value.");
+    emit_byte(compiler, OP_RETURN);
+  }
+}
+
 void block(Compiler *compiler)
 {
   while (!check(compiler, TOKEN_RIGHT_BRACE) && !check(compiler, TOKEN_EOF))
@@ -482,6 +574,35 @@ void binary(Compiler *compiler, bool can_assign)
   default:
     break;
   }
+}
+
+void call(Compiler *compiler, bool can_assign)
+{
+  uint8_t arg_count = argument_list(compiler);
+  emit_bytes(compiler, OP_CALL, arg_count);
+}
+
+uint8_t argument_list(Compiler *compiler)
+{
+  uint8_t arg_count = 0;
+
+  if (!check(compiler, TOKEN_RIGHT_PAREN))
+  {
+    do
+    {
+      expression(compiler);
+
+      if (arg_count == 255)
+      {
+        error(compiler, "Cannot have more than 255 arguments.");
+      }
+
+      ++arg_count;
+    } while (match(compiler, TOKEN_COMMA));
+  }
+
+  consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after parameters.");
+  return arg_count;
 }
 
 void number(Compiler *compiler, bool can_assign)

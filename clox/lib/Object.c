@@ -9,6 +9,26 @@ void free_object(Obj *obj)
 {
   switch (obj->type)
   {
+  case OBJ_FUNCTION:
+  {
+    ObjFunction *fn = (ObjFunction *)obj;
+    free_chunk(&fn->chunk);
+    reallocate(obj, sizeof(ObjFunction), 0);
+    break;
+  }
+
+  case OBJ_NATIVE:
+  {
+    reallocate(obj, sizeof(ObjNative), 0);
+    break;
+  }
+
+  case OBJ_CLOSURE:
+  {
+    reallocate(obj, sizeof(ObjClosure), 0);
+    break;
+  }
+
   case OBJ_STRING:
   {
     ObjString *string = (ObjString *)obj;
@@ -27,6 +47,29 @@ void free_object(Obj *obj)
 ObjType object_type(Value value)
 {
   return as_object(value)->type;
+}
+
+ObjFunction *new_function(VM *vm)
+{
+  ObjFunction *fn = (ObjFunction *)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
+  fn->arity = 0;
+  fn->name = NULL;
+  init_chunk(&fn->chunk);
+  return fn;
+}
+
+ObjNative *new_native(VM *vm, NativeFn fn)
+{
+  ObjNative *native_fn = (ObjNative *)allocate_object(vm, sizeof(ObjNative), OBJ_NATIVE);
+  native_fn->fn = fn;
+  return native_fn;
+}
+
+ObjClosure *new_closure(VM *vm, ObjFunction *fn)
+{
+  ObjClosure *closure = (ObjClosure *)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
+  closure->fn = fn;
+  return closure;
 }
 
 ObjString *copy_string(VM *vm, const char *chars, size_t length)
@@ -81,6 +124,18 @@ void print_object(Value value)
 {
   switch (object_type(value))
   {
+  case OBJ_FUNCTION:
+    print_function(as_function(value));
+    break;
+
+  case OBJ_NATIVE:
+    fprintf(stdout, "<native fn>");
+    break;
+
+  case OBJ_CLOSURE:
+    print_function(as_closure(value)->fn);
+    break;
+
   case OBJ_STRING:
     fprintf(stdout, "%s", as_cstring(value));
     break;
@@ -88,6 +143,11 @@ void print_object(Value value)
   default:
     break;
   }
+}
+
+void print_function(ObjFunction *fn)
+{
+  fprintf(stdout, "<fn %s>", fn->name->chars);
 }
 
 bool is_equal_object(Obj *obja, Obj *objb)
@@ -112,9 +172,39 @@ bool is_string(Value value)
   return is_object(value) && is_object_type(value, OBJ_STRING);
 }
 
+bool is_function(Value value)
+{
+  return is_object(value) && is_object_type(value, OBJ_FUNCTION);
+}
+
+bool is_native(Value value)
+{
+  return is_object(value) && is_object_type(value, OBJ_NATIVE);
+}
+
+bool is_closure(Value value)
+{
+  return is_object(value) && is_object_type(value, OBJ_CLOSURE);
+}
+
 ObjString *as_string(Value value)
 {
   return (ObjString *)as_object(value);
+}
+
+ObjFunction *as_function(Value value)
+{
+  return (ObjFunction *)as_object(value);
+}
+
+NativeFn as_native(Value value)
+{
+  return ((ObjNative *)as_object(value))->fn;
+}
+
+ObjClosure *as_closure(Value value)
+{
+  return (ObjClosure *)as_object(value);
 }
 
 char *as_cstring(Value value)

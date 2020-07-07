@@ -1,6 +1,7 @@
 #ifndef _PARSER_H_
 #define _PARSER_H_
 
+#include "Compiler.h"
 #include "Scanner.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -48,6 +49,8 @@ extern ParseRule rules[];
 
 void init_parser(Parser *parser, Scanner *scanner);
 void declaration(Compiler *compiler);
+void fun_declaration(Compiler *compiler);
+void function(Compiler *compiler, FunctionType type);
 void var_declaration(Compiler *compiler);
 void statement(Compiler *compiler);
 void if_statement(Compiler *compiler);
@@ -55,9 +58,12 @@ void while_statement(Compiler *compiler);
 void for_statement(Compiler *compiler);
 void expression_statement(Compiler *compiler);
 void print_statement(Compiler *compiler);
+void return_statement(Compiler *compiler);
 void block(Compiler *compiler);
 void expression(Compiler *compiler);
 void binary(Compiler *compiler, bool can_assign);
+void call(Compiler *compiler, bool can_assign);
+uint8_t argument_list(Compiler *compiler);
 void grouping(Compiler *compiler, bool can_assign);
 void logical_and(Compiler *compiler, bool can_assign);
 void logical_or(Compiler *compiler, bool can_assign);

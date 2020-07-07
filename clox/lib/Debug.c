@@ -30,6 +30,15 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset)
   uint8_t inst = chunk->code[offset];
   switch (inst)
   {
+  case OP_CLOSURE:
+  {
+    ++offset;
+    uint8_t constant = chunk->code[offset++];
+    fprintf(stdout, "%-16s %4d ", "OP_CLOSURE", constant);
+    print_value(chunk->constants.values[constant]);
+    fputc('\n', stdout);
+    return offset;
+  }
   case OP_DEFINE_GLOBAL:
     return constant_instruction("OP_DEFINE_GLOBAL", chunk, offset);
   case OP_GET_GLOBAL:
@@ -48,6 +57,8 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset)
     return jump_instruction("OP_JUMP", 1, chunk, offset);
   case OP_JUMP_IF_FALSE:
     return jump_instruction("OP_JUMP_IF_ELSE", 1, chunk, offset);
+  case OP_CALL:
+    return byte_instruction("OP_CALL", chunk, offset);
   case OP_RETURN:
     return simple_instruction("OP_RETURN", offset);
   case OP_CONSTANT:

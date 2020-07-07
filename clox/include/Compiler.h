@@ -8,6 +8,7 @@
 
 typedef struct Chunk Chunk;
 typedef struct Parser Parser;
+typedef struct ObjFunction ObjFunction;
 typedef struct VM VM;
 
 #define UINT8_COUNT (UINT8_MAX + 1)
@@ -19,19 +20,28 @@ struct Local {
 
 typedef struct Local Local;
 
+enum FunctionType {
+  TYPE_FUNCTION,
+  TYPE_SCRIPT,
+};
+
+typedef enum FunctionType FunctionType;
+
 struct Compiler {
   Local locals[UINT8_COUNT];
   int local_count;
   int scope_depth;
+  ObjFunction *fn;
+  FunctionType fn_type;
   Parser *parser;
-  Chunk *chunk;
   VM *vm;
 };
 
 typedef struct Compiler Compiler;
 
-void init_compiler(Compiler *compiler);
-bool compile(VM *vm, const char *src, Chunk *chunk);
+void init_compiler(Compiler *compiler, Parser *parser, VM *vm,
+                   FunctionType type);
+ObjFunction *compile(VM *vm, const char *src);
 void define_variable(Compiler *compiler, uint8_t global);
 void declare_variable(Compiler *compiler);
 void mark_initialized(Compiler *compiler);
@@ -49,6 +59,6 @@ void emit_constant(Compiler *compiler, Value value);
 int emit_jump(Compiler *compiler, uint8_t inst);
 void patch_jump(Compiler *compiler, int offset);
 uint8_t make_constant(Compiler *compiler, Value value);
-void end_compiler(Compiler *compiler);
+ObjFunction *end_compiler(Compiler *compiler);
 
 #endif

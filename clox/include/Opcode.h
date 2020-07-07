@@ -26,6 +26,8 @@ enum Opcode {
   OP_LOOP,
   OP_JUMP,
   OP_JUMP_IF_FALSE,
+  OP_CALL,
+  OP_CLOSURE,
 };
 
 typedef enum Opcode Opcode;

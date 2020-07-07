@@ -6,11 +6,20 @@
 #include "Object.h"
 #include "Table.h"
 
-#define STACK_MAX 256
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX * 256)
+
+struct CallFrame {
+  ObjClosure *closure;
+  uint8_t *ip;
+  Value *slots;
+};
+
+typedef struct CallFrame CallFrame;
 
 struct VM {
-  Chunk *chunk;
-  uint8_t *ip;
+  CallFrame frames[FRAMES_MAX];
+  int frame_count;
   Value stack[STACK_MAX];
   Value *stack_top;
   Obj *objects;
@@ -26,5 +35,9 @@ InterpretResult interpret(VM *vm, const char *src);
 void push(VM *vm, Value value);
 Value pop(VM *vm);
 Value peek(VM *vm, size_t index);
+bool call_value(VM *vm, Value callee, int arg_count);
+
+void define_native(VM *vm, const char *name, NativeFn fn);
+Value clock_native(int arg_count, Value *args);
 
 #endif
