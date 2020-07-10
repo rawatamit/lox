@@ -16,6 +16,7 @@ typedef struct VM VM;
 struct Local {
   Token name;
   int depth;
+  bool is_captured;
 };
 
 typedef struct Local Local;
@@ -27,8 +28,17 @@ enum FunctionType {
 
 typedef enum FunctionType FunctionType;
 
+struct Upvalue {
+  bool is_local;
+  uint8_t index;
+};
+
+typedef struct Upvalue Upvalue;
+
 struct Compiler {
+  struct Compiler *enclosing;
   Local locals[UINT8_COUNT];
+  Upvalue upvalues[UINT8_COUNT];
   int local_count;
   int scope_depth;
   ObjFunction *fn;
@@ -48,6 +58,8 @@ void mark_initialized(Compiler *compiler);
 void add_local(Compiler *compiler, Token name);
 bool identifiers_equal(Token *a, Token *b);
 int resolve_local(Compiler *compiler, Token *name);
+int resolve_upvalue(Compiler *compiler, Token *name);
+int add_upvalue(Compiler *compiler, uint8_t index, bool is_local);
 void named_variable(Compiler *compiler, Token name, bool can_assign);
 void begin_scope(Compiler *compiler);
 void end_scope(Compiler *compiler);

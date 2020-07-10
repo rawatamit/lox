@@ -25,6 +25,7 @@ struct VM {
   Obj *objects;
   Table strings;
   Table globals;
+  ObjUpvalue *open_upvalues;
 };
 
 typedef struct VM VM;
@@ -39,5 +40,8 @@ bool call_value(VM *vm, Value callee, int arg_count);
 
 void define_native(VM *vm, const char *name, NativeFn fn);
 Value clock_native(int arg_count, Value *args);
+
+ObjUpvalue *capture_upvalue(VM *vm, Value *slot);
+void close_upvalues(VM *vm, Value *last);
 
 #endif

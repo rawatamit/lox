@@ -1,8 +1,8 @@
 #include "Compiler.h"
+#include "Object.h"
 #include "Opcode.h"
 #include "Parser.h"
 #include "Scanner.h"
-#include "Object.h"
 #include "VM.h"
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +16,7 @@ static Chunk *current_chunk(Compiler *compiler) { return &compiler->fn->chunk; }
 void init_compiler(Compiler *compiler, Parser *parser, VM *vm,
                    FunctionType type)
 {
+  compiler->enclosing = NULL;
   compiler->local_count = 0;
   compiler->scope_depth = 0;
   compiler->parser = parser;
@@ -26,15 +27,14 @@ void init_compiler(Compiler *compiler, Parser *parser, VM *vm,
   if (type != TYPE_SCRIPT)
   {
     compiler->fn->name =
-        copy_string(vm,
-                    parser->previous.start,
-                    parser->previous.length);
+        copy_string(vm, parser->previous.start, parser->previous.length);
   }
 
   Local *local = &compiler->locals[compiler->local_count++];
   local->depth = 0;
   local->name.start = "";
   local->name.length = 0;
+  local->is_captured = false;
 }
 
 ObjFunction *compile(VM *vm, const char *src)
@@ -89,7 +89,8 @@ void declare_variable(Compiler *compiler)
 
     if (identifiers_equal(name, &local->name))
     {
-      error(compiler, "Variable with this name already declared in this scope.");
+      error(compiler,
+            "Variable with this name already declared in this scope.");
     }
   }
 
@@ -101,8 +102,7 @@ void mark_initialized(Compiler *compiler)
   if (compiler->scope_depth == 0)
     return;
 
-  compiler->locals[compiler->local_count - 1].depth =
-      compiler->scope_depth;
+  compiler->locals[compiler->local_count - 1].depth = compiler->scope_depth;
 }
 
 bool identifiers_equal(Token *a, Token *b)
@@ -121,13 +121,11 @@ void add_local(Compiler *compiler, Token name)
     Local *local = &compiler->locals[compiler->local_count++];
     local->name = name;
     local->depth = -1;
+    local->is_captured = false;
   }
 }
 
-void begin_scope(Compiler *compiler)
-{
-  compiler->scope_depth += 1;
-}
+void begin_scope(Compiler *compiler) { compiler->scope_depth += 1; }
 
 void end_scope(Compiler *compiler)
 {
@@ -137,7 +135,14 @@ void end_scope(Compiler *compiler)
          compiler->locals[compiler->local_count - 1].depth >
              compiler->scope_depth)
   {
-    emit_byte(compiler, OP_POP);
+    if (compiler->locals[compiler->local_count - 1].is_captured)
+    {
+      emit_byte(compiler, OP_CLOSE_UPVALUE);
+    }
+    else
+    {
+      emit_byte(compiler, OP_POP);
+    }
     --compiler->local_count;
   }
 }
@@ -191,7 +196,10 @@ int emit_jump(Compiler *compiler, uint8_t inst)
   return current_chunk(compiler)->size - 2;
 }
 
-void emit_return(Compiler *compiler) { emit_bytes(compiler, OP_NIL, OP_RETURN); }
+void emit_return(Compiler *compiler)
+{
+  emit_bytes(compiler, OP_NIL, OP_RETURN);
+}
 
 uint8_t make_constant(Compiler *compiler, Value value)
 {
@@ -258,33 +266,52 @@ void function(Compiler *compiler, FunctionType type)
 {
   Compiler ncompiler;
   init_compiler(&ncompiler, compiler->parser, compiler->vm, type);
+  ncompiler.enclosing = compiler;
+  compiler = &ncompiler;
 
-  begin_scope(&ncompiler);
+  // a function starts a new scope
+  begin_scope(compiler);
 
   // parameter list
-  consume(&ncompiler, TOKEN_LEFT_PAREN, "Expected '(' after function name.");
-  if (!check(&ncompiler, TOKEN_RIGHT_PAREN))
+  consume(compiler, TOKEN_LEFT_PAREN, "Expected '(' after function name.");
+  if (!check(compiler, TOKEN_RIGHT_PAREN))
   {
     do
     {
-      ++ncompiler.fn->arity;
-      if (ncompiler.fn->arity > 255)
+      ++compiler->fn->arity;
+      if (compiler->fn->arity > 255)
       {
-        error_at_current(&ncompiler, "Cannot have more than 255 parameters.");
+        error_at_current(compiler, "Cannot have more than 255 parameters.");
       }
 
-      uint8_t param = parse_variable(&ncompiler, "Expected parameter name.");
-      define_variable(&ncompiler, param);
-    } while (match(&ncompiler, TOKEN_COMMA));
+      uint8_t param = parse_variable(compiler, "Expected parameter name.");
+      define_variable(compiler, param);
+    } while (match(compiler, TOKEN_COMMA));
   }
-  consume(&ncompiler, TOKEN_RIGHT_PAREN, "Expected ')' after parameters.");
+  consume(compiler, TOKEN_RIGHT_PAREN, "Expected ')' after parameters.");
 
   // body
-  consume(&ncompiler, TOKEN_LEFT_BRACE, "Expected '{' before function body.");
-  block(&ncompiler);
+  consume(compiler, TOKEN_LEFT_BRACE, "Expected '{' before function body.");
+  block(compiler);
 
-  ObjFunction *fn = end_compiler(&ncompiler);
-  emit_bytes(compiler, OP_CLOSURE, make_constant(compiler, object_val((Obj *)fn)));
+  // get function created by compiler
+  ObjFunction *fn = end_compiler(compiler);
+
+  // move back to the upper function
+  // as we may need to write upvalues
+  compiler = compiler->enclosing;
+
+  emit_bytes(compiler, OP_CLOSURE,
+             make_constant(compiler, object_val((Obj *)fn)));
+
+  for (int i = 0; i < fn->upvalue_count; ++i)
+  {
+    // NOTE: compiler is the enclosing function for this function
+    // and we stored the upvalues inside this compiler
+    // write them out
+    emit_byte(compiler, ncompiler.upvalues[i].is_local ? 1 : 0);
+    emit_byte(compiler, ncompiler.upvalues[i].index);
+  }
 }
 
 // 'var' ID ('=' expr)? ';'
@@ -301,7 +328,8 @@ void var_declaration(Compiler *compiler)
     emit_byte(compiler, OP_NIL);
   }
 
-  consume(compiler, TOKEN_SEMICOLON, "Expected ';' after variable declaration.");
+  consume(compiler, TOKEN_SEMICOLON,
+          "Expected ';' after variable declaration.");
   define_variable(compiler, global);
 }
 
@@ -482,7 +510,10 @@ void block(Compiler *compiler)
   consume(compiler, TOKEN_RIGHT_BRACE, "Expected '}' after block.");
 }
 
-void expression(Compiler *compiler) { parse_precedence(compiler, PREC_ASSIGNMENT); }
+void expression(Compiler *compiler)
+{
+  parse_precedence(compiler, PREC_ASSIGNMENT);
+}
 
 void grouping(Compiler *compiler, bool can_assign)
 {
@@ -614,11 +645,9 @@ void number(Compiler *compiler, bool can_assign)
 void string(Compiler *compiler, bool can_assign)
 {
   emit_constant(compiler,
-                object_val(
-                    (Obj *)copy_string(
-                        compiler->vm,
-                        compiler->parser->previous.start + 1,
-                        compiler->parser->previous.length - 2)));
+                object_val((Obj *)copy_string(
+                    compiler->vm, compiler->parser->previous.start + 1,
+                    compiler->parser->previous.length - 2)));
 }
 
 void literal(Compiler *compiler, bool can_assign)
@@ -653,6 +682,11 @@ void named_variable(Compiler *compiler, Token name, bool can_assign)
   {
     get_op = OP_GET_LOCAL;
     set_op = OP_SET_LOCAL;
+  }
+  else if ((arg = resolve_upvalue(compiler, &name)) != -1)
+  {
+    get_op = OP_GET_UPVALUE;
+    set_op = OP_SET_UPVALUE;
   }
   else
   {
@@ -693,6 +727,51 @@ int resolve_local(Compiler *compiler, Token *name)
   return -1;
 }
 
+int resolve_upvalue(Compiler *compiler, Token *name)
+{
+  if (compiler->enclosing == NULL)
+    return -1;
+
+  int local = resolve_local(compiler->enclosing, name);
+  if (local != -1)
+  {
+    compiler->enclosing->locals[local].is_captured = true;
+    return add_upvalue(compiler, (uint8_t)local, true);
+  }
+
+  int upvalue = resolve_upvalue(compiler->enclosing, name);
+  if (upvalue != -1)
+  {
+    return add_upvalue(compiler, (uint8_t)upvalue, false);
+  }
+
+  return -1;
+}
+
+int add_upvalue(Compiler *compiler, uint8_t index, bool is_local)
+{
+  int upvalue_count = compiler->fn->upvalue_count;
+
+  for (int i = 0; i < upvalue_count; ++i)
+  {
+    Upvalue *upvalue = &compiler->upvalues[i];
+    if (upvalue->index == index && upvalue->is_local == is_local)
+    {
+      return i;
+    }
+  }
+
+  if (upvalue_count == UINT8_COUNT)
+  {
+    error(compiler, "Too many closure variables in function.");
+    return 0;
+  }
+
+  compiler->upvalues[upvalue_count].is_local = is_local;
+  compiler->upvalues[upvalue_count].index = index;
+  return compiler->fn->upvalue_count++;
+}
+
 uint8_t parse_variable(Compiler *compiler, const char *msg)
 {
   consume(compiler, TOKEN_IDENTIFIER, msg);
@@ -704,5 +783,6 @@ uint8_t parse_variable(Compiler *compiler, const char *msg)
 
 uint8_t identifier_constant(Compiler *compiler, Token *name)
 {
-  return make_constant(compiler, object_val((Obj *)copy_string(compiler->vm, name->start, name->length)));
+  return make_constant(compiler, object_val((Obj *)copy_string(
+                                     compiler->vm, name->start, name->length)));
 }

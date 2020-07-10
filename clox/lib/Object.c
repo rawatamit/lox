@@ -2,8 +2,8 @@
 #include "Memory.h"
 #include "Table.h"
 #include "VM.h"
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 void free_object(Obj *obj)
 {
@@ -25,7 +25,15 @@ void free_object(Obj *obj)
 
   case OBJ_CLOSURE:
   {
+    ObjClosure *closure = (ObjClosure *)obj;
+    free_array(sizeof(ObjUpvalue *), closure->upvalues, closure->upvalue_count);
     reallocate(obj, sizeof(ObjClosure), 0);
+    break;
+  }
+
+  case OBJ_UPVALUE:
+  {
+    reallocate(obj, sizeof(ObjUpvalue), 0);
     break;
   }
 
@@ -44,15 +52,14 @@ void free_object(Obj *obj)
   }
 }
 
-ObjType object_type(Value value)
-{
-  return as_object(value)->type;
-}
+ObjType object_type(Value value) { return as_object(value)->type; }
 
 ObjFunction *new_function(VM *vm)
 {
-  ObjFunction *fn = (ObjFunction *)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
+  ObjFunction *fn =
+      (ObjFunction *)allocate_object(vm, sizeof(ObjFunction), OBJ_FUNCTION);
   fn->arity = 0;
+  fn->upvalue_count = 0;
   fn->name = NULL;
   init_chunk(&fn->chunk);
   return fn;
@@ -60,16 +67,36 @@ ObjFunction *new_function(VM *vm)
 
 ObjNative *new_native(VM *vm, NativeFn fn)
 {
-  ObjNative *native_fn = (ObjNative *)allocate_object(vm, sizeof(ObjNative), OBJ_NATIVE);
+  ObjNative *native_fn =
+      (ObjNative *)allocate_object(vm, sizeof(ObjNative), OBJ_NATIVE);
   native_fn->fn = fn;
   return native_fn;
 }
 
 ObjClosure *new_closure(VM *vm, ObjFunction *fn)
 {
-  ObjClosure *closure = (ObjClosure *)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
+  ObjUpvalue **upvalues = allocate(sizeof(ObjUpvalue *), fn->upvalue_count);
+  for (int i = 0; i < fn->upvalue_count; ++i)
+  {
+    upvalues[i] = NULL;
+  }
+
+  ObjClosure *closure =
+      (ObjClosure *)allocate_object(vm, sizeof(ObjClosure), OBJ_CLOSURE);
   closure->fn = fn;
+  closure->upvalues = upvalues;
+  closure->upvalue_count = fn->upvalue_count;
   return closure;
+}
+
+ObjUpvalue *new_upvalue(VM *vm, Value *slot)
+{
+  ObjUpvalue *upvalue =
+      (ObjUpvalue *)allocate_object(vm, sizeof(ObjUpvalue), OBJ_UPVALUE);
+  upvalue->closed = nil_val();
+  upvalue->location = slot;
+  upvalue->next = NULL;
+  return upvalue;
 }
 
 ObjString *copy_string(VM *vm, const char *chars, size_t length)
@@ -86,7 +113,8 @@ ObjString *copy_string(VM *vm, const char *chars, size_t length)
 
 ObjString *allocate_string(VM *vm, char *chars, size_t length, uint32_t hash)
 {
-  ObjString *string = (ObjString *)allocate_object(vm, sizeof(ObjString), OBJ_STRING);
+  ObjString *string =
+      (ObjString *)allocate_object(vm, sizeof(ObjString), OBJ_STRING);
   string->chars = chars;
   string->length = length;
   string->hash = hash;
@@ -134,6 +162,10 @@ void print_object(Value value)
 
   case OBJ_CLOSURE:
     print_function(as_closure(value)->fn);
+    break;
+
+  case OBJ_UPVALUE:
+    fprintf(stdout, "upvalue");
     break;
 
   case OBJ_STRING:
@@ -187,30 +219,18 @@ bool is_closure(Value value)
   return is_object(value) && is_object_type(value, OBJ_CLOSURE);
 }
 
-ObjString *as_string(Value value)
-{
-  return (ObjString *)as_object(value);
-}
+ObjString *as_string(Value value) { return (ObjString *)as_object(value); }
 
 ObjFunction *as_function(Value value)
 {
   return (ObjFunction *)as_object(value);
 }
 
-NativeFn as_native(Value value)
-{
-  return ((ObjNative *)as_object(value))->fn;
-}
+NativeFn as_native(Value value) { return ((ObjNative *)as_object(value))->fn; }
 
-ObjClosure *as_closure(Value value)
-{
-  return (ObjClosure *)as_object(value);
-}
+ObjClosure *as_closure(Value value) { return (ObjClosure *)as_object(value); }
 
-char *as_cstring(Value value)
-{
-  return ((ObjString *)as_object(value))->chars;
-}
+char *as_cstring(Value value) { return ((ObjString *)as_object(value))->chars; }
 
 uint32_t hash_string(const char *key, int length)
 {

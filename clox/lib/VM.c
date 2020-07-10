@@ -1,11 +1,11 @@
 #include "VM.h"
 #include "Compiler.h"
 #include "Debug.h"
+#include "Object.h"
 #include "Opcode.h"
 #include "Value.h"
-#include "Object.h"
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
@@ -61,17 +61,14 @@ void push(VM *vm, Value value) { *vm->stack_top++ = value; }
 
 Value pop(VM *vm) { return *--vm->stack_top; }
 
-Value peek(VM *vm, size_t index)
-{
-  return vm->stack_top[-1 - index];
-}
+Value peek(VM *vm, size_t index) { return vm->stack_top[-1 - index]; }
 
 static bool call(VM *vm, ObjClosure *closure, int arg_count)
 {
   if (arg_count != closure->fn->arity)
   {
-    runtime_error(vm, "Expected %d arguments but got %d.",
-                  closure->fn->arity, arg_count);
+    runtime_error(vm, "Expected %d arguments but got %d.", closure->fn->arity,
+                  arg_count);
     return false;
   }
 
@@ -130,7 +127,9 @@ InterpretResult run(VM *vm)
       printf(" ]");
     }
     putchar('\n');
-    disassemble_instruction(&frame->closure->fn->chunk, (size_t)(frame->ip - frame->closure->fn->chunk.code));
+    disassemble_instruction(
+        &frame->closure->fn->chunk,
+        (size_t)(frame->ip - frame->closure->fn->chunk.code));
 #endif
 
     uint8_t inst = read_byte(frame);
@@ -142,6 +141,33 @@ InterpretResult run(VM *vm)
       ObjFunction *fn = as_function(read_constant(frame));
       ObjClosure *closure = new_closure(vm, fn);
       push(vm, object_val((Obj *)closure));
+      for (int i = 0; i < closure->upvalue_count; ++i)
+      {
+        uint8_t is_local = read_byte(frame);
+        uint8_t index = read_byte(frame);
+        if (is_local)
+        {
+          closure->upvalues[i] = capture_upvalue(vm, frame->slots + index);
+        }
+        else
+        {
+          closure->upvalues[i] = frame->closure->upvalues[index];
+        }
+      }
+      break;
+    }
+
+    case OP_GET_UPVALUE:
+    {
+      uint8_t slot = read_byte(frame);
+      push(vm, *frame->closure->upvalues[slot]->location);
+      break;
+    }
+
+    case OP_SET_UPVALUE:
+    {
+      uint8_t slot = read_byte(frame);
+      *frame->closure->upvalues[slot]->location = peek(vm, 0);
       break;
     }
 
@@ -152,6 +178,11 @@ InterpretResult run(VM *vm)
       pop(vm);
       break;
     }
+
+    case OP_CLOSE_UPVALUE:
+      close_upvalues(vm, vm->stack_top - 1);
+      pop(vm);
+      break;
 
     case OP_GET_GLOBAL:
     {
@@ -236,6 +267,7 @@ InterpretResult run(VM *vm)
     case OP_RETURN:
     {
       Value res = pop(vm);
+      close_upvalues(vm, frame->slots);
       --vm->frame_count;
       if (vm->frame_count == 0)
       {
@@ -385,6 +417,7 @@ void reset_stack(VM *vm)
 {
   vm->stack_top = vm->stack;
   vm->frame_count = 0;
+  vm->open_upvalues = NULL;
 }
 
 static void runtime_error(VM *vm, const char *format, ...)
@@ -402,8 +435,7 @@ static void runtime_error(VM *vm, const char *format, ...)
     // -1 because the IP is sitting on the next instruction to be
     // executed.
     size_t instruction = frame->ip - function->chunk.code - 1;
-    fprintf(stderr, "[line %d] in ",
-            function->chunk.lines[instruction]);
+    fprintf(stderr, "[line %d] in ", function->chunk.lines[instruction]);
     if (function->name == NULL)
     {
       fprintf(stderr, "script\n");
@@ -443,4 +475,45 @@ void define_native(VM *vm, const char *name, NativeFn fn)
 Value clock_native(int arg_count, Value *args)
 {
   return number_val((double)clock() / CLOCKS_PER_SEC);
+}
+
+ObjUpvalue *capture_upvalue(VM *vm, Value *slot)
+{
+  ObjUpvalue *prev_upvalue = NULL;
+  ObjUpvalue *upvalue = vm->open_upvalues;
+
+  while (upvalue != NULL && upvalue->location > slot)
+  {
+    prev_upvalue = upvalue;
+    upvalue = upvalue->next;
+  }
+
+  if (upvalue != NULL && upvalue->location == slot)
+  {
+    return upvalue;
+  }
+
+  ObjUpvalue *created_upvalue = new_upvalue(vm, slot);
+  created_upvalue->next = upvalue;
+  if (prev_upvalue == NULL)
+  {
+    vm->open_upvalues = created_upvalue;
+  }
+  else
+  {
+    prev_upvalue->next = created_upvalue;
+  }
+
+  return created_upvalue;
+}
+
+void close_upvalues(VM *vm, Value *last)
+{
+  while (vm->open_upvalues != NULL && vm->open_upvalues->location >= last)
+  {
+    ObjUpvalue *upvalue = vm->open_upvalues;
+    upvalue->closed = *upvalue->location;
+    upvalue->location = &upvalue->closed;
+    vm->open_upvalues = upvalue->next;
+  }
 }
