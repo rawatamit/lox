@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 
 enum ValueType {
   VAL_BOOL,
@@ -34,11 +35,12 @@ struct ValueArray {
 };
 
 typedef struct ValueArray ValueArray;
+typedef struct VM VM;
 
 void init_value_array(ValueArray *array);
-void write_value_array(ValueArray *array, Value value);
-void free_value_array(ValueArray *array);
-void print_value(Value value);
+void write_value_array(VM *vm, ValueArray *array, Value value);
+void free_value_array(VM *vm, ValueArray *array);
+void print_value(FILE *out, Value value);
 
 Value add(Value, Value);
 Value subtract(Value, Value);

@@ -9,6 +9,8 @@ add_compile_options(
   #"-DDEBUG_TRACE_EXECUTION"
   #"-DDEBUG_DISASSEMBLE"
   #"-DDEBUG_PRINT_CODE"
+  #"-DDEBUG_STRESS_GC"
+  #"-DDEBUG_LOG_GC"
   "-Wall" "-Wpedantic" "-Wextra" "-fexceptions"
   "-g" "-O0")
 

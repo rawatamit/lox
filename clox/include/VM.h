@@ -9,6 +9,8 @@
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
 
+typedef struct Compiler Compiler;
+
 struct CallFrame {
   ObjClosure *closure;
   uint8_t *ip;
@@ -18,6 +20,8 @@ struct CallFrame {
 typedef struct CallFrame CallFrame;
 
 struct VM {
+  // for GC
+  Compiler *compiler;
   CallFrame frames[FRAMES_MAX];
   int frame_count;
   Value stack[STACK_MAX];
@@ -25,6 +29,11 @@ struct VM {
   Obj *objects;
   Table strings;
   Table globals;
+  int gray_size;
+  int gray_capacity;
+  Obj **gray_stack;
+  size_t bytes_allocated;
+  size_t next_gc;
   ObjUpvalue *open_upvalues;
 };
 

@@ -1,4 +1,5 @@
 #include "Compiler.h"
+#include "Memory.h"
 #include "Object.h"
 #include "Opcode.h"
 #include "Parser.h"
@@ -13,16 +14,18 @@
 
 static Chunk *current_chunk(Compiler *compiler) { return &compiler->fn->chunk; }
 
-void init_compiler(Compiler *compiler, Parser *parser, VM *vm,
+void init_compiler(Compiler *compiler, Compiler *enclosing, Parser *parser, VM *vm,
                    FunctionType type)
 {
-  compiler->enclosing = NULL;
+  compiler->enclosing = enclosing;
   compiler->local_count = 0;
   compiler->scope_depth = 0;
   compiler->parser = parser;
   compiler->vm = vm;
   compiler->fn = new_function(vm);
   compiler->fn_type = type;
+  // for GC
+  compiler->vm->compiler = compiler;
 
   if (type != TYPE_SCRIPT)
   {
@@ -46,7 +49,7 @@ ObjFunction *compile(VM *vm, const char *src)
   init_parser(&parser, &scanner);
 
   Compiler compiler;
-  init_compiler(&compiler, &parser, vm, TYPE_SCRIPT);
+  init_compiler(&compiler, NULL, &parser, vm, TYPE_SCRIPT);
   compiler.fn->name = copy_string(vm, "top-level", 10);
 
   advance(&compiler);
@@ -58,6 +61,15 @@ ObjFunction *compile(VM *vm, const char *src)
 
   ObjFunction *fn = end_compiler(&compiler);
   return parser.had_error ? NULL : fn;
+}
+
+void mark_compiler_roots(Compiler *compiler)
+{
+  while (compiler != NULL)
+  {
+    mark_object(compiler->vm, (Obj *)compiler->fn);
+    compiler = compiler->enclosing;
+  }
 }
 
 void define_variable(Compiler *compiler, uint8_t global)
@@ -160,7 +172,8 @@ void emit_loop(Compiler *compiler, int loop_start)
 
 void emit_byte(Compiler *compiler, uint8_t byte)
 {
-  write_chunk(current_chunk(compiler), byte, compiler->parser->previous.line);
+  write_chunk(compiler->vm, current_chunk(compiler), byte,
+              compiler->parser->previous.line);
 }
 
 void emit_bytes(Compiler *compiler, uint8_t byte1, uint8_t byte2)
@@ -203,7 +216,7 @@ void emit_return(Compiler *compiler)
 
 uint8_t make_constant(Compiler *compiler, Value value)
 {
-  size_t index = add_constant(current_chunk(compiler), value);
+  size_t index = add_constant(compiler->vm, current_chunk(compiler), value);
 
   if (index > UINT8_MAX)
   {
@@ -222,7 +235,7 @@ ObjFunction *end_compiler(Compiler *compiler)
 #ifdef DEBUG_PRINT_CODE
   if (!compiler->parser->had_error)
   {
-    disassemble_chunk(current_chunk(compiler), fn->name->chars);
+    disassemble_chunk(current_chunk(compiler), fn->name->chars, stderr);
   }
 #endif
 
@@ -265,8 +278,7 @@ void fun_declaration(Compiler *compiler)
 void function(Compiler *compiler, FunctionType type)
 {
   Compiler ncompiler;
-  init_compiler(&ncompiler, compiler->parser, compiler->vm, type);
-  ncompiler.enclosing = compiler;
+  init_compiler(&ncompiler, compiler, compiler->parser, compiler->vm, type);
   compiler = &ncompiler;
 
   // a function starts a new scope
@@ -300,6 +312,8 @@ void function(Compiler *compiler, FunctionType type)
   // move back to the upper function
   // as we may need to write upvalues
   compiler = compiler->enclosing;
+  // for GC, set compiler as enclosing compiler
+  compiler->vm->compiler = compiler;
 
   emit_bytes(compiler, OP_CLOSURE,
              make_constant(compiler, object_val((Obj *)fn)));

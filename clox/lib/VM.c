@@ -1,11 +1,13 @@
 #include "VM.h"
 #include "Compiler.h"
 #include "Debug.h"
+#include "Memory.h"
 #include "Object.h"
 #include "Opcode.h"
 #include "Value.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -23,22 +25,30 @@ void init_VM(VM *vm)
   reset_stack(vm);
   init_table(&vm->strings);
   init_table(&vm->globals);
-  define_native(vm, "clock", clock_native);
+  vm->compiler = NULL;
+  vm->gray_size = 0;
+  vm->gray_capacity = 0;
+  vm->gray_stack = NULL;
   vm->objects = NULL;
+  vm->bytes_allocated = 0;
+  vm->next_gc = 1024 * 1024;
+  define_native(vm, "clock", clock_native);
 }
 
 void free_VM(VM *vm)
 {
-  free_table(&vm->strings);
-  free_table(&vm->globals);
+  free_table(vm, &vm->strings);
+  free_table(vm, &vm->globals);
 
   Obj *object = vm->objects;
   while (object != NULL)
   {
     Obj *next = object->next;
-    free_object(object);
+    free_object(vm, object);
     object = next;
   }
+
+  free(vm->gray_stack);
 }
 
 InterpretResult interpret(VM *vm, const char *src)
@@ -49,6 +59,8 @@ InterpretResult interpret(VM *vm, const char *src)
     return INTERPRET_COMPILE_ERROR;
   }
 
+  // for GC
+  vm->compiler = NULL;
   push(vm, object_val((Obj *)fn));
   ObjClosure *closure = new_closure(vm, fn);
   pop(vm);
@@ -119,17 +131,18 @@ InterpretResult run(VM *vm)
   for (;;)
   {
 #ifdef DEBUG_TRACE_EXECUTION
-    printf("      ");
+    fprintf(stderr, "      ");
     for (Value *slot = vm->stack; slot < vm->stack_top; ++slot)
     {
-      printf("[ ");
-      print_value(*slot);
-      printf(" ]");
+      fprintf(stderr, "[ ");
+      print_value(stderr, *slot);
+      fprintf(stderr, " ]");
     }
-    putchar('\n');
+    fputc('\n', stderr);
     disassemble_instruction(
         &frame->closure->fn->chunk,
-        (size_t)(frame->ip - frame->closure->fn->chunk.code));
+        (size_t)(frame->ip - frame->closure->fn->chunk.code),
+        stderr);
 #endif
 
     uint8_t inst = read_byte(frame);
@@ -174,7 +187,7 @@ InterpretResult run(VM *vm)
     case OP_DEFINE_GLOBAL:
     {
       ObjString *name = read_string(frame);
-      table_set(&vm->globals, name, peek(vm, 0));
+      table_set(vm, &vm->globals, name, peek(vm, 0));
       pop(vm);
       break;
     }
@@ -201,9 +214,9 @@ InterpretResult run(VM *vm)
     case OP_SET_GLOBAL:
     {
       ObjString *name = read_string(frame);
-      if (table_set(&vm->globals, name, peek(vm, 0)))
+      if (table_set(vm, &vm->globals, name, peek(vm, 0)))
       {
-        table_delete(&vm->globals, name);
+        table_delete(vm, &vm->globals, name);
         runtime_error(vm, "Undefined variable '%s'.", name->chars);
         return INTERPRET_RUNTIME_ERROR;
       }
@@ -225,7 +238,7 @@ InterpretResult run(VM *vm)
     }
 
     case OP_PRINT:
-      print_value(pop(vm));
+      print_value(stdout, pop(vm));
       putchar('\n');
       break;
 
@@ -310,9 +323,11 @@ InterpretResult run(VM *vm)
     case OP_ADD:
       if (is_string(peek(vm, 0)) && is_string(peek(vm, 1)))
       {
-        ObjString *sb = (ObjString *)as_object(pop(vm));
-        ObjString *sa = (ObjString *)as_object(pop(vm));
+        ObjString *sb = (ObjString *)as_object(peek(vm, 0));
+        ObjString *sa = (ObjString *)as_object(peek(vm, 1));
         push(vm, concatenate(vm, sa, sb));
+        pop(vm);
+        pop(vm);
         break;
       }
       else if (is_number(peek(vm, 0)) && is_number(peek(vm, 1)))
@@ -424,7 +439,7 @@ static void runtime_error(VM *vm, const char *format, ...)
 {
   va_list args;
   va_start(args, format);
-  vfprintf(stdout, format, args);
+  vfprintf(stderr, format, args);
   va_end(args);
   putc('\n', stderr);
 
@@ -467,7 +482,7 @@ void define_native(VM *vm, const char *name, NativeFn fn)
 {
   push(vm, object_val((Obj *)copy_string(vm, name, strlen(name))));
   push(vm, object_val((Obj *)new_native(vm, fn)));
-  table_set(&vm->globals, as_string(vm->stack[0]), vm->stack[1]);
+  table_set(vm, &vm->globals, as_string(vm->stack[0]), vm->stack[1]);
   pop(vm);
   pop(vm);
 }

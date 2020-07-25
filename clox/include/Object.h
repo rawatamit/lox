@@ -4,6 +4,7 @@
 #include "Chunk.h"
 #include "Value.h"
 #include <stdint.h>
+#include <stdio.h>
 
 typedef struct VM VM;
 
@@ -19,6 +20,7 @@ typedef enum ObjType ObjType;
 
 struct Obj {
   ObjType type;
+  bool is_marked;
   struct Obj *next;
 };
 
@@ -70,7 +72,6 @@ struct ObjClosure {
 
 typedef struct ObjClosure ObjClosure;
 
-void free_object(Obj *obj);
 ObjType object_type(Value value);
 ObjFunction *new_function(VM *vm);
 ObjNative *new_native(VM *vm, NativeFn fn);
@@ -80,8 +81,8 @@ ObjString *copy_string(VM *vm, const char *chars, size_t length);
 Value concatenate(VM *vm, ObjString *sa, ObjString *sb);
 ObjString *take_string(VM *vm, char *chars, int length);
 ObjString *allocate_string(VM *vm, char *chars, size_t length, uint32_t hash);
-void print_object(Value value);
-void print_function(ObjFunction *fn);
+void print_object(FILE *out, Value value);
+void print_function(FILE *out, ObjFunction *fn);
 
 bool is_equal_object(Obj *obja, Obj *objb);
 bool is_object_type(Value value, ObjType type);

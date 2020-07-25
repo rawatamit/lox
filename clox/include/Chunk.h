@@ -14,10 +14,11 @@ struct Chunk {
 };
 
 typedef struct Chunk Chunk;
+typedef struct VM VM;
 
 void init_chunk(Chunk *chunk);
-void free_chunk(Chunk *chunk);
-void write_chunk(Chunk *chunk, uint8_t byte, int line);
-size_t add_constant(Chunk *chunk, Value value);
+void free_chunk(VM *vm, Chunk *chunk);
+void write_chunk(VM *vm, Chunk *chunk, uint8_t byte, int line);
+size_t add_constant(VM *vm, Chunk *chunk, Value value);
 
 #endif

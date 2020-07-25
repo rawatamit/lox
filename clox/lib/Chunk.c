@@ -1,8 +1,10 @@
 #include "Chunk.h"
 #include "Memory.h"
+#include "VM.h"
 #include <stdlib.h>
 
-void init_chunk(Chunk *chunk) {
+void init_chunk(Chunk *chunk)
+{
   chunk->size = 0;
   chunk->capacity = 0;
   chunk->code = NULL;
@@ -10,21 +12,24 @@ void init_chunk(Chunk *chunk) {
   init_value_array(&chunk->constants);
 }
 
-void free_chunk(Chunk *chunk) {
-  free_array(sizeof(uint8_t), chunk->code, chunk->capacity);
-  free_array(sizeof(int), chunk->lines, chunk->capacity);
-  free_value_array(&chunk->constants);
+void free_chunk(VM *vm, Chunk *chunk)
+{
+  free_array(vm, sizeof(uint8_t), chunk->code, chunk->capacity);
+  free_array(vm, sizeof(int), chunk->lines, chunk->capacity);
+  free_value_array(vm, &chunk->constants);
   init_chunk(chunk);
 }
 
-void write_chunk(Chunk *chunk, uint8_t byte, int line) {
-  if (chunk->capacity <= chunk->size) {
+void write_chunk(VM *vm, Chunk *chunk, uint8_t byte, int line)
+{
+  if (chunk->capacity <= chunk->size)
+  {
     size_t old_capacity = chunk->capacity;
     chunk->capacity = grow_capacity(old_capacity);
     chunk->code =
-        grow_array(chunk->code, sizeof(uint8_t), old_capacity, chunk->capacity);
+        grow_array(vm, chunk->code, sizeof(uint8_t), old_capacity, chunk->capacity);
     chunk->lines =
-        grow_array(chunk->lines, sizeof(int), old_capacity, chunk->capacity);
+        grow_array(vm, chunk->lines, sizeof(int), old_capacity, chunk->capacity);
   }
 
   chunk->code[chunk->size] = byte;
@@ -32,7 +37,10 @@ void write_chunk(Chunk *chunk, uint8_t byte, int line) {
   ++chunk->size;
 }
 
-size_t add_constant(Chunk *chunk, Value value) {
-  write_value_array(&chunk->constants, value);
+size_t add_constant(VM *vm, Chunk *chunk, Value value)
+{
+  push(vm, value);
+  write_value_array(vm, &chunk->constants, value);
+  pop(vm);
   return chunk->constants.size - 1;
 }

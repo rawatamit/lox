@@ -49,8 +49,8 @@ struct Compiler {
 
 typedef struct Compiler Compiler;
 
-void init_compiler(Compiler *compiler, Parser *parser, VM *vm,
-                   FunctionType type);
+void init_compiler(Compiler *compiler, Compiler *enclosing, Parser *parser,
+                   VM *vm, FunctionType type);
 ObjFunction *compile(VM *vm, const char *src);
 void define_variable(Compiler *compiler, uint8_t global);
 void declare_variable(Compiler *compiler);
