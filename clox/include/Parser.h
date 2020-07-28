@@ -49,6 +49,9 @@ extern ParseRule rules[];
 
 void init_parser(Parser *parser, Scanner *scanner);
 void declaration(Compiler *compiler);
+void class_declaration(Compiler *compiler);
+void method(Compiler *compiler);
+void function(Compiler *compiler, FunctionType type);
 void fun_declaration(Compiler *compiler);
 void function(Compiler *compiler, FunctionType type);
 void var_declaration(Compiler *compiler);
@@ -63,6 +66,7 @@ void block(Compiler *compiler);
 void expression(Compiler *compiler);
 void binary(Compiler *compiler, bool can_assign);
 void call(Compiler *compiler, bool can_assign);
+void dot(Compiler *compiler, bool can_assign);
 uint8_t argument_list(Compiler *compiler);
 void grouping(Compiler *compiler, bool can_assign);
 void logical_and(Compiler *compiler, bool can_assign);

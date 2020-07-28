@@ -30,6 +30,14 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out)
   uint8_t inst = chunk->code[offset];
   switch (inst)
   {
+  case OP_CLASS:
+    return constant_instruction("OP_CLASS", chunk, offset, out);
+  case OP_GET_PROPERTY:
+    return constant_instruction("OP_GET_PROPERTY", chunk, offset, out);
+  case OP_SET_PROPERTY:
+    return constant_instruction("OP_SET_PROPERTY", chunk, offset, out);
+  case OP_METHOD:
+    return constant_instruction("OP_METHOD", chunk, offset, out);
   case OP_CLOSURE:
   {
     ++offset;

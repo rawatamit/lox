@@ -103,6 +103,19 @@ bool call_value(VM *vm, Value callee, int arg_count)
   {
     switch (object_type(callee))
     {
+    case OBJ_CLASS:
+    {
+      ObjClass *klass = as_class(callee);
+      vm->stack_top[-arg_count - 1] = object_val((Obj *)new_instance(vm, klass));
+      return true;
+    }
+
+    case OBJ_BOUND_METHOD:
+    {
+      ObjBoundMethod *bound_method = as_bound_method(callee);
+      return call(vm, bound_method->method, arg_count);
+    }
+
     case OBJ_CLOSURE:
       return call(vm, as_closure(callee), arg_count);
 
@@ -149,6 +162,56 @@ InterpretResult run(VM *vm)
 
     switch (inst)
     {
+    case OP_CLASS:
+      push(vm, object_val((Obj *)new_class(vm, read_string(frame))));
+      break;
+
+    case OP_GET_PROPERTY:
+    {
+      if (!is_instance(peek(vm, 0)))
+      {
+        runtime_error(vm, "Only instances have properties.");
+        return INTERPRET_RUNTIME_ERROR;
+      }
+
+      ObjInstance *instance = as_instance(peek(vm, 0));
+      ObjString *name = read_string(frame);
+
+      Value value;
+      if (table_get(&instance->fields, name, &value))
+      {
+        pop(vm); // instance
+        push(vm, value);
+      }
+      else if (!bind_method(vm, instance->klass, name))
+      {
+        return INTERPRET_RUNTIME_ERROR;
+      }
+
+      break;
+    }
+
+    case OP_SET_PROPERTY:
+    {
+      if (!is_instance(peek(vm, 1)))
+      {
+        runtime_error(vm, "Only instances have properties.");
+        return INTERPRET_RUNTIME_ERROR;
+      }
+
+      ObjInstance *instance = as_instance(peek(vm, 1));
+      ObjString *name = read_string(frame);
+      table_set(vm, &instance->fields, name, peek(vm, 0));
+      Value value = pop(vm); // value
+      pop(vm);               // instance
+      push(vm, value);
+      break;
+    }
+
+    case OP_METHOD:
+      define_method(vm, read_string(frame));
+      break;
+
     case OP_CLOSURE:
     {
       ObjFunction *fn = as_function(read_constant(frame));
@@ -323,12 +386,8 @@ InterpretResult run(VM *vm)
     case OP_ADD:
       if (is_string(peek(vm, 0)) && is_string(peek(vm, 1)))
       {
-        ObjString *sb = (ObjString *)as_object(peek(vm, 0));
-        ObjString *sa = (ObjString *)as_object(peek(vm, 1));
-        push(vm, concatenate(vm, sa, sb));
-        pop(vm);
-        pop(vm);
-        break;
+        // concatenate strings
+        concatenate(vm);
       }
       else if (is_number(peek(vm, 0)) && is_number(peek(vm, 1)))
       {
@@ -530,5 +589,30 @@ void close_upvalues(VM *vm, Value *last)
     upvalue->closed = *upvalue->location;
     upvalue->location = &upvalue->closed;
     vm->open_upvalues = upvalue->next;
+  }
+}
+
+void define_method(VM *vm, ObjString *name)
+{
+  Value method = peek(vm, 0);
+  ObjClass *klass = as_class(peek(vm, 1));
+  table_set(vm, &klass->methods, name, method);
+  pop(vm); // method
+}
+
+bool bind_method(VM *vm, ObjClass *klass, ObjString *name)
+{
+  Value method;
+  if (table_get(&klass->methods, name, &method))
+  {
+    ObjBoundMethod *bound = new_bound_method(vm, peek(vm, 0), as_closure(method));
+    pop(vm);                            // instance
+    push(vm, object_val((Obj *)bound)); // method
+    return true;
+  }
+  else
+  {
+    runtime_error(vm, "Undefined property '%s'.", name->chars);
+    return false;
   }
 }

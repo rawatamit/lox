@@ -256,6 +256,11 @@ void declaration(Compiler *compiler)
     fun_declaration(compiler);
     break;
 
+  case TOKEN_CLASS:
+    match(compiler, TOKEN_CLASS);
+    class_declaration(compiler);
+    break;
+
   default:
     statement(compiler);
     break;
@@ -265,6 +270,34 @@ void declaration(Compiler *compiler)
   {
     synchronize(compiler);
   }
+}
+
+void class_declaration(Compiler *compiler)
+{
+  consume(compiler, TOKEN_IDENTIFIER, "Expected class name.");
+  Token name = compiler->parser->previous;
+  uint8_t name_constant = identifier_constant(compiler, &name);
+  declare_variable(compiler);
+
+  emit_bytes(compiler, OP_CLASS, name_constant);
+  define_variable(compiler, name_constant);
+  named_variable(compiler, name, false);
+  consume(compiler, TOKEN_LEFT_BRACE, "Expected '{' before class body.");
+  while (!check(compiler, TOKEN_RIGHT_BRACE) && !check(compiler, TOKEN_EOF))
+  {
+    method(compiler);
+  }
+
+  consume(compiler, TOKEN_RIGHT_BRACE, "Expected '}' after class body.");
+  emit_byte(compiler, OP_POP);
+}
+
+void method(Compiler *compiler)
+{
+  consume(compiler, TOKEN_IDENTIFIER, "Expected method name.");
+  uint8_t constant = identifier_constant(compiler, &compiler->parser->previous);
+  function(compiler, TYPE_FUNCTION);
+  emit_bytes(compiler, OP_METHOD, constant);
 }
 
 void fun_declaration(Compiler *compiler)
@@ -625,6 +658,22 @@ void call(Compiler *compiler, bool can_assign)
 {
   uint8_t arg_count = argument_list(compiler);
   emit_bytes(compiler, OP_CALL, arg_count);
+}
+
+void dot(Compiler *compiler, bool can_assign)
+{
+  consume(compiler, TOKEN_IDENTIFIER, "Expected property name after '.'.");
+  uint8_t name = identifier_constant(compiler, &compiler->parser->previous);
+
+  if (can_assign && match(compiler, TOKEN_EQUAL))
+  {
+    expression(compiler);
+    emit_bytes(compiler, OP_SET_PROPERTY, name);
+  }
+  else
+  {
+    emit_bytes(compiler, OP_GET_PROPERTY, name);
+  }
 }
 
 uint8_t argument_list(Compiler *compiler)

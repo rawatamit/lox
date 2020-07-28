@@ -53,4 +53,7 @@ Value clock_native(int arg_count, Value *args);
 ObjUpvalue *capture_upvalue(VM *vm, Value *slot);
 void close_upvalues(VM *vm, Value *last);
 
+void define_method(VM *vm, ObjString *name);
+bool bind_method(VM *vm, ObjClass *klass, ObjString *name);
+
 #endif

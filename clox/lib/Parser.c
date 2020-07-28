@@ -3,16 +3,19 @@
 #include "Scanner.h"
 #include <stdio.h>
 
-void init_parser(Parser *parser, Scanner *scanner) {
+void init_parser(Parser *parser, Scanner *scanner)
+{
   parser->scanner = scanner;
   parser->had_error = false;
   parser->panic_mode = false;
 }
 
-void advance(Compiler *compiler) {
+void advance(Compiler *compiler)
+{
   compiler->parser->previous = compiler->parser->current;
 
-  for (;;) {
+  for (;;)
+  {
     compiler->parser->current = scan_token(compiler->parser->scanner);
     if (compiler->parser->current.type != TOKEN_ERROR)
       break;
@@ -21,12 +24,15 @@ void advance(Compiler *compiler) {
   }
 }
 
-bool check(Compiler *compiler, TokenType type) {
+bool check(Compiler *compiler, TokenType type)
+{
   return compiler->parser->current.type == type;
 }
 
-bool match(Compiler *compiler, TokenType type) {
-  if (check(compiler, type)) {
+bool match(Compiler *compiler, TokenType type)
+{
+  if (check(compiler, type))
+  {
     advance(compiler);
     return true;
   }
@@ -34,8 +40,10 @@ bool match(Compiler *compiler, TokenType type) {
   return false;
 }
 
-void consume(Compiler *compiler, TokenType type, const char *message) {
-  if (check(compiler, type)) {
+void consume(Compiler *compiler, TokenType type, const char *message)
+{
+  if (check(compiler, type))
+  {
     advance(compiler);
     return;
   }
@@ -43,14 +51,17 @@ void consume(Compiler *compiler, TokenType type, const char *message) {
   error_at_current(compiler, message);
 }
 
-void synchronize(Compiler *compiler) {
+void synchronize(Compiler *compiler)
+{
   compiler->parser->panic_mode = false;
 
-  while (!check(compiler, TOKEN_EOF)) {
+  while (!check(compiler, TOKEN_EOF))
+  {
     if (compiler->parser->previous.type == TOKEN_SEMICOLON)
       return;
 
-    switch (compiler->parser->current.type) {
+    switch (compiler->parser->current.type)
+    {
     case TOKEN_CLASS:
     case TOKEN_FUN:
     case TOKEN_VAR:
@@ -70,25 +81,33 @@ void synchronize(Compiler *compiler) {
   }
 }
 
-void error_at_current(Compiler *compiler, const char *message) {
+void error_at_current(Compiler *compiler, const char *message)
+{
   error_at(compiler, &compiler->parser->current, message);
 }
 
-void error(Compiler *compiler, const char *message) {
+void error(Compiler *compiler, const char *message)
+{
   error_at(compiler, &compiler->parser->previous, message);
 }
 
-void error_at(Compiler *compiler, Token *token, const char *message) {
+void error_at(Compiler *compiler, Token *token, const char *message)
+{
   if (compiler->parser->panic_mode)
     return;
   compiler->parser->panic_mode = true;
   fprintf(stderr, "[line %d] Error", token->line);
 
-  if (token->type == TOKEN_EOF) {
+  if (token->type == TOKEN_EOF)
+  {
     fprintf(stderr, " at end");
-  } else if (token->type == TOKEN_ERROR) {
+  }
+  else if (token->type == TOKEN_ERROR)
+  {
     // Nothing.
-  } else {
+  }
+  else
+  {
     fprintf(stderr, " at '%.*s'", token->length, token->start);
   }
 
@@ -98,11 +117,13 @@ void error_at(Compiler *compiler, Token *token, const char *message) {
 
 ParseRule *get_rule(TokenType type) { return &rules[type]; }
 
-void parse_precedence(Compiler *compiler, Precedence precedence) {
+void parse_precedence(Compiler *compiler, Precedence precedence)
+{
   advance(compiler);
 
   ParseFn prefix_rule = get_rule(compiler->parser->previous.type)->prefix;
-  if (prefix_rule == NULL) {
+  if (prefix_rule == NULL)
+  {
     error(compiler, "Expected expression.");
     return;
   }
@@ -110,13 +131,15 @@ void parse_precedence(Compiler *compiler, Precedence precedence) {
   bool can_assign = precedence <= PREC_ASSIGNMENT;
   prefix_rule(compiler, can_assign);
 
-  while (precedence <= get_rule(compiler->parser->current.type)->precedence) {
+  while (precedence <= get_rule(compiler->parser->current.type)->precedence)
+  {
     advance(compiler);
     ParseFn infix_rule = get_rule(compiler->parser->previous.type)->infix;
     infix_rule(compiler, can_assign);
   }
 
-  if (can_assign && match(compiler, TOKEN_EQUAL)) {
+  if (can_assign && match(compiler, TOKEN_EQUAL))
+  {
     error(compiler, "Invalid assignment target.");
   }
 }
@@ -127,7 +150,7 @@ ParseRule rules[] = {
     {NULL, NULL, PREC_NONE},         // TOKEN_LEFT_BRACE
     {NULL, NULL, PREC_NONE},         // TOKEN_RIGHT_BRACE
     {NULL, NULL, PREC_NONE},         // TOKEN_COMMA
-    {NULL, NULL, PREC_NONE},         // TOKEN_DOT
+    {NULL, dot, PREC_CALL},          // TOKEN_DOT
     {unary, binary, PREC_TERM},      // TOKEN_MINUS
     {NULL, binary, PREC_TERM},       // TOKEN_PLUS
     {NULL, NULL, PREC_NONE},         // TOKEN_SEMICOLON

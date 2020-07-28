@@ -1,8 +1,10 @@
 #ifndef _TABLE_H_
 #define _TABLE_H_
 
-#include "Object.h"
 #include "Value.h"
+#include <stdint.h>
+
+typedef struct ObjString ObjString;
 
 struct Entry {
   ObjString *key;

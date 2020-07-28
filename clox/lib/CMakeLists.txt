@@ -9,6 +9,7 @@ add_library(vmlib
             Value.c
             Object.c
             VM.c
+            GC.c
             Scanner.c
             Parser.c
             Table.c
