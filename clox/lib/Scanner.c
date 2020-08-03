@@ -1,6 +1,7 @@
 #include "Scanner.h"
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 static char advance(Scanner *scanner);
@@ -164,7 +165,8 @@ Token number(Scanner *scanner) {
 }
 
 Token identifier(Scanner *scanner) {
-  while (isalpha(peek(scanner)) || isdigit(peek(scanner)))
+  while (isalpha(peek(scanner)) || isdigit(peek(scanner)) ||
+         peek(scanner) == '_')
     advance(scanner);
 
   return make_token(scanner, identifier_type(scanner));

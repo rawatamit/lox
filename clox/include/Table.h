@@ -26,10 +26,11 @@ typedef struct Table Table;
 void init_table(Table *table);
 void free_table(VM *vm, Table *table);
 bool table_set(VM *vm, Table *table, ObjString *key, Value value);
+bool table_set_no_search(VM *vm, Table *table, ObjString *key, Value value);
 bool table_get(Table *table, ObjString *key, Value *value);
 ObjString *table_find_string(Table *table, const char *key, size_t length,
                              uint32_t hash);
 bool table_delete(VM *vm, Table *table, ObjString *key);
-void table_add_all(Table *from, Table *to);
+void table_add_all(VM *vm, Table *from, Table *to);
 
 #endif

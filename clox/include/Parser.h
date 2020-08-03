@@ -65,6 +65,8 @@ void return_statement(Compiler *compiler);
 void block(Compiler *compiler);
 void expression(Compiler *compiler);
 void binary(Compiler *compiler, bool can_assign);
+void this_(Compiler *compiler, bool can_assign);
+void super_(Compiler *compiler, bool can_assign);
 void call(Compiler *compiler, bool can_assign);
 void dot(Compiler *compiler, bool can_assign);
 uint8_t argument_list(Compiler *compiler);

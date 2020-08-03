@@ -4,32 +4,25 @@
 #include "Value.h"
 #include <stdio.h>
 
-void disassemble_chunk(Chunk *chunk, const char *name, FILE *out)
-{
+void disassemble_chunk(Chunk *chunk, const char *name, FILE *out) {
   fprintf(out, "== %s ==\n", name);
 
-  for (size_t offset = 0; offset < chunk->size;)
-  {
+  for (size_t offset = 0; offset < chunk->size;) {
     offset = disassemble_instruction(chunk, offset, out);
   }
 }
 
-size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out)
-{
+size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out) {
   fprintf(out, "%04ld ", offset);
 
-  if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1])
-  {
+  if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) {
     fprintf(out, "   | ");
-  }
-  else
-  {
+  } else {
     fprintf(out, "%4d ", chunk->lines[offset]);
   }
 
   uint8_t inst = chunk->code[offset];
-  switch (inst)
-  {
+  switch (inst) {
   case OP_CLASS:
     return constant_instruction("OP_CLASS", chunk, offset, out);
   case OP_GET_PROPERTY:
@@ -38,8 +31,7 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out)
     return constant_instruction("OP_SET_PROPERTY", chunk, offset, out);
   case OP_METHOD:
     return constant_instruction("OP_METHOD", chunk, offset, out);
-  case OP_CLOSURE:
-  {
+  case OP_CLOSURE: {
     ++offset;
     uint8_t constant = chunk->code[offset++];
     fprintf(out, "%-16s %4d ", "OP_CLOSURE", constant);
@@ -47,8 +39,7 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out)
     fputc('\n', out);
 
     ObjFunction *function = as_function(chunk->constants.values[constant]);
-    for (int j = 0; j < function->upvalue_count; ++j)
-    {
+    for (int j = 0; j < function->upvalue_count; ++j) {
       int is_local = chunk->code[offset++];
       int index = chunk->code[offset++];
       fprintf(out, "%04ld      |                     %s %d\n", offset - 2,
@@ -56,6 +47,14 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out)
     }
     return offset;
   }
+  case OP_INVOKE:
+    return invoke_instruction("OP_INVOKE", chunk, offset, out);
+  case OP_GET_SUPER:
+    return constant_instruction("OP_GET_SUPER", chunk, offset, out);
+  case OP_SUPER_INVOKE:
+    return invoke_instruction("OP_SUPER_INVOKE", chunk, offset, out);
+  case OP_INHERIT:
+    return simple_instruction("OP_INHERIT", offset, out);
   case OP_GET_UPVALUE:
     return byte_instruction("OP_GET_UPVALUE", chunk, offset, out);
   case OP_SET_UPVALUE:
@@ -118,14 +117,13 @@ size_t disassemble_instruction(Chunk *chunk, size_t offset, FILE *out)
   }
 }
 
-size_t simple_instruction(const char *name, size_t offset, FILE *out)
-{
+size_t simple_instruction(const char *name, size_t offset, FILE *out) {
   fprintf(out, "%s\n", name);
   return offset + 1;
 }
 
-size_t constant_instruction(const char *name, Chunk *chunk, size_t offset, FILE *out)
-{
+size_t constant_instruction(const char *name, Chunk *chunk, size_t offset,
+                            FILE *out) {
   uint8_t constant = chunk->code[offset + 1];
   fprintf(out, "%-16s %4d '", name, constant);
   print_value(out, chunk->constants.values[constant]);
@@ -133,17 +131,27 @@ size_t constant_instruction(const char *name, Chunk *chunk, size_t offset, FILE 
   return offset + 2;
 }
 
-size_t byte_instruction(const char *name, Chunk *chunk, size_t offset, FILE *out)
-{
+size_t byte_instruction(const char *name, Chunk *chunk, size_t offset,
+                        FILE *out) {
   uint8_t slot = chunk->code[offset + 1];
   fprintf(out, "%-16s %4d\n", name, slot);
   return offset + 2;
 }
 
-size_t jump_instruction(const char *name, int sign, Chunk *chunk, int offset, FILE *out)
-{
+size_t jump_instruction(const char *name, int sign, Chunk *chunk, int offset,
+                        FILE *out) {
   uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
   jump |= chunk->code[offset + 2];
   fprintf(out, "%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+  return offset + 3;
+}
+
+size_t invoke_instruction(const char *name, Chunk *chunk, int offset,
+                          FILE *out) {
+  uint8_t constant = chunk->code[offset + 1];
+  uint8_t arg_count = chunk->code[offset + 2];
+  fprintf(out, "%-16s (%d args) %4d '", name, arg_count, constant);
+  print_value(out, chunk->constants.values[constant]);
+  fprintf(out, "'\n");
   return offset + 3;
 }

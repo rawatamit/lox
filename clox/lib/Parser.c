@@ -178,8 +178,8 @@ ParseRule rules[] = {
     {NULL, logical_or, PREC_OR},     // TOKEN_OR
     {NULL, NULL, PREC_NONE},         // TOKEN_PRINT
     {NULL, NULL, PREC_NONE},         // TOKEN_RETURN
-    {NULL, NULL, PREC_NONE},         // TOKEN_SUPER
-    {NULL, NULL, PREC_NONE},         // TOKEN_THIS
+    {super_, NULL, PREC_NONE},       // TOKEN_SUPER
+    {this_, NULL, PREC_NONE},        // TOKEN_THIS
     {literal, NULL, PREC_NONE},      // TOKEN_TRUE
     {NULL, NULL, PREC_NONE},         // TOKEN_VAR
     {NULL, NULL, PREC_NONE},         // TOKEN_WHILE

@@ -29,6 +29,7 @@ struct VM {
   Obj *objects;
   Table strings;
   Table globals;
+  ObjString *init_string;
   int gray_size;
   int gray_capacity;
   Obj **gray_stack;
@@ -55,5 +56,9 @@ void close_upvalues(VM *vm, Value *last);
 
 void define_method(VM *vm, ObjString *name);
 bool bind_method(VM *vm, ObjClass *klass, ObjString *name);
+
+bool invoke(VM *vm, ObjString *name, uint8_t arg_count);
+bool invoke_from_class(VM *vm, ObjClass *klass, ObjString *name,
+                       uint8_t arg_count);
 
 #endif

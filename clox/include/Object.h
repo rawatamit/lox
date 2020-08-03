@@ -116,7 +116,6 @@ ObjString *allocate_string(VM *vm, char *chars, size_t length, uint32_t hash);
 void print_object(FILE *out, Value value);
 void print_function(FILE *out, ObjFunction *fn);
 
-bool is_equal_object(Obj *obja, Obj *objb);
 bool is_object_type(Value value, ObjType type);
 bool is_string(Value value);
 bool is_function(Value value);

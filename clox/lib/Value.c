@@ -140,7 +140,7 @@ bool is_equal(Value a, Value b)
       return as_number(a) == as_number(b);
 
     case VAL_OBJ:
-      return is_equal_object(as_object(a), as_object(b));
+      return as_object(a) == as_object(b);
 
     default:
       return false;

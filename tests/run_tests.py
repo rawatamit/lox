@@ -90,7 +90,7 @@ def print_succeeded_test(test_name):
 
 
 def run_tests(interpreter_path, test_paths, verbose=False,
-              ignore_retval=False):
+              ignore_message=False, ignore_retval=False):
     """Run the specified interpreter over the provided test source files,
     reporting errors as necessary."""
 
@@ -121,8 +121,13 @@ def run_tests(interpreter_path, test_paths, verbose=False,
             if line.strip()]
         actual_retval = process.returncode
 
+        # on an error condition i.e. process exit with non-zero exit code
+        # only verify the first line of the error messages match
+        actual_output = actual_output if expected_retval == 0 or not actual_output else [actual_output[0]]
+        expected_output = expected_output if expected_retval == 0 else [expected_output[0]]
+
         test_name = os.path.relpath(test_path, directory)
-        succeeded = (actual_output == expected_output and
+        succeeded = ((ignore_message or actual_output == expected_output) and
                      (ignore_retval or actual_retval == expected_retval))
         if succeeded:
             print_succeeded_test(test_name)
@@ -147,11 +152,13 @@ if __name__ == "__main__":
                         help="Display detail in failed tests.")
     parser.add_argument("-i", "--ignore-retval", action="store_true",
                         help="Ignore interpreter return value.")
+    parser.add_argument("-m", "--ignore-output", action="store_true",
+                        help="Ignore interpreter error output.")
     parser.add_argument("-x", "--exclude", action="store_true",
                         help="Exclude tests matching regex.")
     args = parser.parse_args()
 
     num_failed_tests = run_tests(
         args.interpreter, gather_files(args.test_regex, args.exclude),
-        args.verbose, args.ignore_retval)
+        args.verbose, args.ignore_output, args.ignore_retval)
     sys.exit(num_failed_tests)

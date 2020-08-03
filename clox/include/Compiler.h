@@ -23,6 +23,8 @@ typedef struct Local Local;
 
 enum FunctionType {
   TYPE_FUNCTION,
+  TYPE_METHOD,
+  TYPE_INITIALIZER,
   TYPE_SCRIPT,
 };
 
@@ -35,8 +37,17 @@ struct Upvalue {
 
 typedef struct Upvalue Upvalue;
 
+struct ClassCompiler {
+  Token name;
+  bool has_superclass;
+  struct ClassCompiler *enclosing;
+};
+
+typedef struct ClassCompiler ClassCompiler;
+
 struct Compiler {
   struct Compiler *enclosing;
+  ClassCompiler *current_class;
   Local locals[UINT8_COUNT];
   Upvalue upvalues[UINT8_COUNT];
   int local_count;
@@ -72,5 +83,6 @@ int emit_jump(Compiler *compiler, uint8_t inst);
 void patch_jump(Compiler *compiler, int offset);
 uint8_t make_constant(Compiler *compiler, Value value);
 ObjFunction *end_compiler(Compiler *compiler);
+Token synthetic_token(const char *text);
 
 #endif

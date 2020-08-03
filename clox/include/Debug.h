@@ -12,5 +12,7 @@ size_t byte_instruction(const char *name, Chunk *chunk, size_t offset,
                         FILE *out);
 size_t jump_instruction(const char *name, int sign, Chunk *chunk, int offset,
                         FILE *out);
+size_t invoke_instruction(const char *name, Chunk *chunk, int offset,
+                          FILE *out);
 
 #endif

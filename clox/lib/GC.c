@@ -49,6 +49,7 @@ void mark_roots(VM *vm)
   }
 
   mark_table(vm, &vm->globals);
+  mark_object(vm, (Obj *)vm->init_string);
   mark_compiler_roots(vm->compiler);
 }
 

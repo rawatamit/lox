@@ -147,7 +147,7 @@ void print_object(FILE *out, Value value)
     break;
 
   case OBJ_INSTANCE:
-    fprintf(out, "<instance %s>", as_instance(value)->klass->name->chars);
+    fprintf(out, "%s instance", as_instance(value)->klass->name->chars);
     break;
 
   case OBJ_FUNCTION:
@@ -184,18 +184,6 @@ void print_function(FILE *out, ObjFunction *fn)
   else
   {
     fprintf(out, "<fn ||between-allocation||>");
-  }
-}
-
-bool is_equal_object(Obj *obja, Obj *objb)
-{
-  switch (obja->type)
-  {
-  case OBJ_STRING:
-    return obja == objb;
-
-  default:
-    return false;
   }
 }
 
